@@ -2845,36 +2845,6 @@ h4 {
   height: 100%;
 }
 
-.map-chip {
-  position: absolute;
-  top: 1rem;
-  right: 1rem;
-  z-index: 1000;
-  min-height: 2.45rem;
-  border-radius: 999px;
-  padding: 0.4rem 0.95rem;
-  background: #fff;
-  border: 1px solid #d5ddd3;
-  color: #25583a;
-  font-weight: 700;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.55rem;
-}
-
-.map-chip-dot {
-  width: 0.8rem;
-  height: 0.8rem;
-  border-radius: 999px;
-  background: rgba(136, 196, 124, 0.9);
-  border: 1px solid rgba(67, 126, 63, 0.5);
-  box-shadow: inset 0 0 0 2px rgba(219, 243, 214, 0.65);
-}
-
-.map-chip-shade {
-  max-width: min(24rem, calc(100% - 2rem));
-}
-
 .planner-map-loading {
   position: absolute;
   inset: 0;
@@ -2987,10 +2957,17 @@ h4 {
   border-radius: 14px;
   padding: 14px 16px;
   display: flex;
-  flex-direction: row;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 0.45rem;
+}
+
+.rv-stat-main {
+  display: inline-flex;
   align-items: baseline;
-  gap: 7px;
-  flex-wrap: wrap;
+  gap: 0.16rem;
+  flex-wrap: nowrap;
 }
 
 .rv-stat-card strong {
@@ -2998,6 +2975,10 @@ h4 {
   font-weight: 900;
   color: #1b5e20;
   line-height: 1;
+}
+
+.rv-stat-main strong {
+  white-space: nowrap;
 }
 
 .rv-stat-card span {
@@ -3117,17 +3098,6 @@ h4 {
   border-radius: 5px;
   border: 1px solid rgba(76, 131, 67, 0.34);
   background: rgba(183, 228, 174, 0.62);
-}
-
-.rv-legend-note {
-  margin: 0;
-  padding: 0.85rem 0.95rem;
-  border-radius: 0.9rem;
-  background: #f2f8ef;
-  border: 1px solid #d7e7d3;
-  color: #4b6350;
-  font-size: 0.9rem;
-  line-height: 1.55;
 }
 
 /* ── Map Custom Markers ─────────────────────────────────── */

@@ -262,12 +262,18 @@
 
         <div class="rv-stats-row">
           <div class="rv-stat-card">
-            <strong>{{ walkMinutes }}</strong>
-            <span>min walk</span>
+            <div class="rv-stat-main">
+              <strong>{{ walkMinutes }}</strong>
+              <strong>MIN</strong>
+            </div>
+            <span>Walking time</span>
           </div>
           <div class="rv-stat-card">
-            <strong>{{ distanceMetric.value }}</strong>
-            <span>{{ distanceMetric.unit }} away</span>
+            <div class="rv-stat-main">
+              <strong>{{ distanceMetric.value }}</strong>
+              <strong>{{ distanceMetric.unit.toUpperCase() }}</strong>
+            </div>
+            <span>Distance away</span>
           </div>
         </div>
 
@@ -346,18 +352,11 @@
               Tree canopy shade
             </div>
           </div>
-          <p class="rv-legend-note">
-            Tree canopy data will be supplied by the backend service. This legend item is kept for the map display.
-          </p>
         </div>
 
       </aside>
 
       <section class="planner-route-map-area">
-        <div class="map-chip map-chip-shade">
-          <span class="map-chip-dot" aria-hidden="true"></span>
-          Shade layer display
-        </div>
         <div v-if="isLoadingPlan" class="planner-map-loading" role="status" aria-live="polite">
           <span class="planner-spinner" aria-hidden="true"></span>
           <p>Loading route map...</p>
