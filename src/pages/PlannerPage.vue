@@ -45,31 +45,61 @@
     </div>
 
     <section class="planner-shell" v-if="!isRouteView">
-      <article class="planner-card planner-start-card">
-        <h1>Let's start your journey</h1>
-        <p class="planner-start-label">Starting from</p>
-        <p class="planner-start-copy">
-          Choose your starting point first. You can use your current location or pick a point directly on the map.
-        </p>
-        <div class="planner-location-row">
-          <div class="planner-location-chip" :class="{ 'is-empty': !hasStartLocation }">
-            <img class="planner-location-icon" :src="locationIcon" alt="" aria-hidden="true" />
-            <div>
-              <strong>{{ locationLabel }}</strong>
-              <small>{{ locationMeta }}</small>
-            </div>
-          </div>
-          <div class="planner-location-actions">
-            <button class="btn btn-light planner-location-btn" @click="useMyLocation" :disabled="isLocating || isLoadingPlan">
-              {{ isLocating ? 'Locating...' : 'Use my current location' }}
-            </button>
-            <button class="btn planner-map-pick-btn" type="button" @click="openMapPicker" :disabled="isLoadingPlan">
-              Choose on map
-            </button>
-          </div>
+      <!-- ── Step 1: Starting point ──────────────────────────── -->
+      <article class="planner-card planner-step-card" :class="{ 'step-confirmed': hasStartLocation }">
+        <div class="planner-step-badge">
+          <span class="planner-step-num">1</span> Starting Point
         </div>
-        <p v-if="!hasStartLocation" class="planner-start-note">Select a supported starting point to unlock destination options.</p>
-        <p v-if="errorMessage && !hasStartLocation" class="planner-start-error">{{ errorMessage }}</p>
+
+        <!-- Confirmed state -->
+        <div v-if="hasStartLocation" class="planner-confirmed-row">
+          <span class="planner-confirmed-check">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+          </span>
+          <div class="planner-confirmed-info">
+            <strong>{{ locationLabel }}</strong>
+            <small>{{ locationMeta }}</small>
+          </div>
+          <button class="planner-confirmed-change-btn" type="button" @click="changeLocation" :disabled="isLoadingPlan">
+            Change
+          </button>
+        </div>
+
+        <!-- Selection state -->
+        <template v-else>
+          <h1 class="planner-step-title">Where are you starting from?</h1>
+          <p class="planner-step-desc">Choose your starting point to unlock nearby route options.</p>
+          <div class="planner-loc-options">
+            <button
+              class="planner-loc-opt"
+              :class="{ 'is-loading': isLocating }"
+              @click="useMyLocation"
+              :disabled="isLocating || isLoadingPlan"
+            >
+              <span class="planner-loc-opt-icon planner-loc-opt-icon--gps">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M4.22 4.22l2.83 2.83m9.9 9.9 2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m9.9-9.9 2.83-2.83"/></svg>
+              </span>
+              <span class="planner-loc-opt-body">
+                <strong>{{ isLocating ? 'Detecting location…' : 'Use my current location' }}</strong>
+                <small>Automatically detect via GPS</small>
+              </span>
+            </button>
+            <button
+              class="planner-loc-opt planner-loc-opt--map"
+              @click="openMapPicker"
+              :disabled="isLoadingPlan || isLocating"
+            >
+              <span class="planner-loc-opt-icon planner-loc-opt-icon--map">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+              </span>
+              <span class="planner-loc-opt-body">
+                <strong>Pick a point on the map</strong>
+                <small>Drop a pin in Central Melbourne</small>
+              </span>
+            </button>
+          </div>
+          <p v-if="errorMessage" class="planner-loc-error-msg">{{ errorMessage }}</p>
+        </template>
       </article>
 
       <article v-if="isPickingOnMap" class="planner-card planner-map-picker-card" ref="pickerCardEl">
@@ -104,8 +134,13 @@
         </div>
       </article>
 
-      <article v-if="hasStartLocation" class="planner-card planner-type-card-wrap" ref="typeSectionEl">
-        <h2>Where would you like to go?</h2>
+      <!-- ── Step 2: Destination type (unlocked after location set) ── -->
+      <article v-if="hasStartLocation" class="planner-card planner-step-card planner-step-type" ref="typeSectionEl">
+        <div class="planner-step-badge planner-step-badge--two">
+          <span class="planner-step-num">2</span> Destination Type
+        </div>
+        <h2 class="planner-step-title">Where would you like to go?</h2>
+        <p class="planner-step-desc">Pick a category and we'll find the best match for your journey.</p>
         <div class="planner-type-grid">
           <button
             v-for="item in destinationTypes"
@@ -123,18 +158,11 @@
         </div>
       </article>
 
-      <article v-else class="planner-card planner-flow-hint-card">
-        <h2>Choose your starting point first</h2>
-        <p>
-          Once your starting point is set, GreenPath will show destination types and recommend one route option inside the supported area.
-        </p>
-      </article>
-
       <section v-if="hasStartLocation" class="planner-result-anchor" ref="resultAnchorEl">
         <article v-if="hasSelectedType && isLoadingPlan" class="planner-card planner-result-loading-card">
           <span class="planner-spinner" aria-hidden="true"></span>
-          <h3>Searching route options...</h3>
-          <p>Please wait while we find a nearby destination and supporting facilities.</p>
+          <h3>Finding your best route…</h3>
+          <p>We're searching for an ideal destination and planning a comfortable journey for you.</p>
         </article>
 
         <article v-else-if="hasSelectedType && hasDestination" class="planner-card planner-result-card">
@@ -206,7 +234,7 @@
         </article>
 
         <article v-else-if="hasSelectedType && hasSearched && !isLoadingPlan && !!errorMessage" class="planner-card planner-no-result-card">
-          <h3>Unable to load route right now</h3>
+          <h3>Service temporarily unavailable</h3>
           <p>{{ errorMessage }}</p>
           <div class="planner-summary-actions">
             <button class="btn planner-change-btn" @click="requestPlan">Try again</button>
@@ -354,7 +382,6 @@ import groceryIcon from '../assets/svg/grocery.svg'
 import clinicIcon from '../assets/svg/clinic.svg'
 import parkIcon from '../assets/svg/park.svg'
 import cafeIcon from '../assets/svg/break-cafe.svg'
-import locationIcon from '../assets/svg/location-icon.svg'
 import benchIcon from '../assets/svg/bench-icon.svg'
 import toiletIcon from '../assets/svg/toilet-icon.svg'
 import fountainIcon from '../assets/svg/drinking-fountain-icon.svg'
@@ -744,9 +771,7 @@ const requestPlan = async () => {
   } catch (error) {
     if (requestId !== activeRequestId) return
     clearResult()
-    errorMessage.value = error instanceof Error
-      ? `${error.message}. Make sure backend is running at ${API_BASE_URL}.`
-      : 'Unable to load route data.'
+    errorMessage.value = 'The route planning service is currently busy. Please try again shortly.'
   } finally {
     if (requestId !== activeRequestId) return
     isLoadingPlan.value = false
@@ -792,6 +817,19 @@ const clearDestinationChoice = () => {
   isRouteView.value = false
   clearResult()
   nextTick(() => scrollTo(typeSectionEl.value))
+}
+
+const changeLocation = () => {
+  activeRequestId += 1
+  userLocation.lat = null
+  userLocation.lng = null
+  userLocation.source = 'unset'
+  selectedType.value = ''
+  errorMessage.value = ''
+  infoMessage.value = ''
+  hasSearched.value = false
+  isRouteView.value = false
+  clearResult()
 }
 
 const haversineMeters = (lat1, lng1, lat2, lng2) => {

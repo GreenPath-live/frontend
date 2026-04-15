@@ -2101,6 +2101,250 @@ h4 {
   opacity: 0.75;
 }
 
+/* ═══════════════════════════════════════════════════════
+   Planner Step Cards  (new two-step design)
+═══════════════════════════════════════════════════════ */
+
+.planner-step-card {
+  padding: 1.75rem 2rem;
+  transition: border-color 0.22s, background 0.22s;
+}
+
+.planner-step-card.step-confirmed {
+  background: linear-gradient(135deg, #f2faf4 0%, #f7fbf7 100%);
+  border-color: #9fcbb0;
+}
+
+.planner-step-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 1.15rem;
+  padding: 0.28rem 0.88rem 0.28rem 0.35rem;
+  border-radius: 999px;
+  background: #1a3d28;
+  color: #c7edda;
+  font-size: 0.79rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.planner-step-badge--two {
+  background: #2b4a5c;
+  color: #c7dff0;
+}
+
+.planner-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.planner-step-title {
+  font-family: 'Manrope', sans-serif;
+  font-weight: 800;
+  font-size: clamp(2rem, 4vw, 3.1rem);
+  letter-spacing: -0.02em;
+  color: #1a2920;
+  line-height: 1.1;
+  margin: 0;
+}
+
+.planner-step-desc {
+  margin: 0.5rem 0 0;
+  color: #4b5c51;
+  font-size: 1.05rem;
+  max-width: 60ch;
+}
+
+/* ── Location option buttons ──────────────────────── */
+
+.planner-loc-options {
+  margin-top: 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.planner-loc-opt {
+  display: flex;
+  align-items: center;
+  gap: 1.1rem;
+  padding: 1.4rem 1.6rem;
+  border-radius: 1.15rem;
+  border: 2px solid #d5e0d7;
+  background: #f5f7f4;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s, transform 0.12s;
+}
+
+.planner-loc-opt:hover:not(:disabled) {
+  border-color: #2f7f4a;
+  background: #eef7f0;
+  box-shadow: 0 6px 24px rgba(47, 127, 74, 0.14);
+  transform: translateY(-2px);
+}
+
+.planner-loc-opt:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.planner-loc-opt:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.planner-loc-opt.is-loading {
+  opacity: 0.8;
+  cursor: wait;
+}
+
+.planner-loc-opt--map:hover:not(:disabled) {
+  border-color: #3d576e;
+  background: #edf2f6;
+  box-shadow: 0 6px 24px rgba(61, 87, 110, 0.14);
+}
+
+.planner-loc-opt-icon {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.18s, color 0.18s;
+}
+
+.planner-loc-opt-icon--gps {
+  background: #ddf0e5;
+  color: #2f7f4a;
+}
+
+.planner-loc-opt-icon--map {
+  background: #dce8f0;
+  color: #3d576e;
+}
+
+.planner-loc-opt:hover:not(:disabled) .planner-loc-opt-icon--gps {
+  background: #2f7f4a;
+  color: #fff;
+}
+
+.planner-loc-opt--map:hover:not(:disabled) .planner-loc-opt-icon--map {
+  background: #3d576e;
+  color: #fff;
+}
+
+.planner-loc-opt-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.18rem;
+}
+
+.planner-loc-opt-body strong {
+  display: block;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #1a2920;
+  line-height: 1.25;
+}
+
+.planner-loc-opt-body small {
+  display: block;
+  font-size: 0.88rem;
+  color: #5a6e62;
+  font-weight: 600;
+}
+
+.planner-loc-error-msg {
+  margin: 1rem 0 0;
+  padding: 0.8rem 1.1rem;
+  border-radius: 0.9rem;
+  background: rgba(170, 48, 36, 0.06);
+  border: 1px solid rgba(170, 48, 36, 0.18);
+  color: #aa3024;
+  font-weight: 700;
+  font-size: 0.97rem;
+  line-height: 1.5;
+}
+
+/* ── Confirmed location row ───────────────────────── */
+
+.planner-confirmed-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.planner-confirmed-check {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #2f7f4a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.planner-confirmed-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.planner-confirmed-info strong {
+  display: block;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: #0f3d20;
+  line-height: 1.25;
+}
+
+.planner-confirmed-info small {
+  display: block;
+  margin-top: 0.1rem;
+  color: #456453;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.planner-confirmed-change-btn {
+  flex-shrink: 0;
+  border: 1.5px solid #a8c9b3;
+  background: transparent;
+  color: #2f7f4a;
+  padding: 0.5rem 1.2rem;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.planner-confirmed-change-btn:hover:not(:disabled) {
+  background: #edf7f1;
+  border-color: #2f7f4a;
+}
+
+.planner-confirmed-change-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.planner-step-type .planner-type-grid {
+  margin-top: 1.15rem;
+}
+
 .planner-type-card-wrap h2 {
   font-family: 'Manrope', sans-serif;
   font-size: clamp(2rem, 4vw, 3rem);
@@ -2209,7 +2453,7 @@ h4 {
     radial-gradient(circle at 20% 10%, rgba(181, 213, 180, 0.2), transparent 40%);
 }
 
-.planner-result-loading-card h2,
+.planner-result-loading-card h3,
 .planner-no-result-card h3 {
   font-family: 'Manrope', sans-serif;
   font-size: clamp(1.9rem, 4.2vw, 3rem);
@@ -2977,6 +3221,10 @@ h4 {
     align-items: stretch;
   }
 
+  .planner-loc-options {
+    grid-template-columns: 1fr;
+  }
+
   .planner-location-actions {
     width: 100%;
   }
@@ -3032,6 +3280,26 @@ h4 {
   .planner-card {
     padding: 1rem;
     border-radius: 1rem;
+  }
+
+  .planner-step-card {
+    padding: 1.3rem 1.1rem;
+  }
+
+  .planner-loc-options {
+    grid-template-columns: 1fr;
+  }
+
+  .planner-loc-opt {
+    padding: 1.1rem 1.2rem;
+  }
+
+  .planner-confirmed-row {
+    flex-wrap: wrap;
+  }
+
+  .planner-confirmed-change-btn {
+    margin-left: calc(38px + 0.9rem);
   }
 
   .planner-location-chip,
