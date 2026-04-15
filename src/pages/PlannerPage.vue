@@ -3,6 +3,47 @@
     <div class="planner-scene" aria-hidden="true"></div>
     <div class="planner-scene-overlay" aria-hidden="true"></div>
 
+    <div
+      v-if="showPlannerIntro"
+      class="planner-intro-backdrop"
+      role="presentation"
+      @click.self="showPlannerIntro = false"
+    >
+      <section
+        class="planner-intro-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="planner-intro-title"
+      >
+        <button class="planner-intro-close" type="button" aria-label="Close planner introduction" @click="showPlannerIntro = false">
+          ×
+        </button>
+        <p class="planner-intro-kicker">WELCOME TO GREENPATH</p>
+        <h2 id="planner-intro-title">GreenPath supports safer everyday travel for older adults.</h2>
+        <p class="planner-intro-copy">
+          This planner is designed to help older adults make comfortable and confident daily trips, not just the shortest ones.
+        </p>
+
+        <ol class="planner-intro-points">
+          <li>Choose the type of destination you want to visit.</li>
+          <li>
+            We will recommend one <strong class="planner-intro-highlight">unique</strong> destination.
+            Distance is not our only priority. We also consider comfort, cooler walking conditions,
+            nearby rest facilities, and access to public toilets.
+          </li>
+        </ol>
+
+        <p class="planner-intro-warning">
+          GreenPath currently supports Central Melbourne only: CBD, Docklands, Southbank, Kensington,
+          North Melbourne, West Melbourne, East Melbourne, Parkville, Carlton, and South Yarra.
+        </p>
+
+        <button class="btn btn-primary planner-intro-action" type="button" @click="showPlannerIntro = false">
+          Start Planning
+        </button>
+      </section>
+    </div>
+
     <section class="planner-shell" v-if="!isRouteView">
       <article class="planner-card planner-start-card">
         <h1>Let's start your journey</h1>
@@ -290,6 +331,7 @@ const isLoadingPlan = ref(false)
 const isLocating = ref(false)
 const isRouteView = ref(false)
 const hasSearched = ref(false)
+const showPlannerIntro = ref(true)
 
 const userLocation = reactive({
   lat: DEFAULT_LOCATION.lat,

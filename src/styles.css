@@ -1758,6 +1758,109 @@ h4 {
     radial-gradient(circle at 16% 14%, rgba(196, 221, 191, 0.25), transparent 35%);
 }
 
+.planner-intro-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: grid;
+  place-items: center;
+  padding: 1.2rem;
+  background: rgba(18, 31, 21, 0.58);
+  backdrop-filter: blur(8px);
+}
+
+.planner-intro-modal {
+  position: relative;
+  width: min(760px, 100%);
+  background: linear-gradient(180deg, #f7f5ef 0%, #eff3eb 100%);
+  border: 1px solid rgba(191, 206, 188, 0.92);
+  border-radius: 1.75rem;
+  box-shadow: 0 26px 72px rgba(15, 30, 18, 0.28);
+  padding: 2rem 2rem 1.8rem;
+}
+
+.planner-intro-close {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.95rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: none;
+  border-radius: 50%;
+  background: rgba(19, 45, 28, 0.08);
+  color: #223628;
+  font-size: 1.55rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.planner-intro-kicker {
+  margin: 0 0 0.7rem;
+  font-size: 0.84rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  color: #2f7f4a;
+  text-transform: uppercase;
+}
+
+.planner-intro-modal h2 {
+  margin: 0;
+  font-family: 'Fraunces', serif;
+  font-size: clamp(2rem, 4vw, 2.9rem);
+  line-height: 1.12;
+  color: #19241d;
+}
+
+.planner-intro-copy {
+  margin-top: 1rem;
+  font-size: 1.08rem;
+  line-height: 1.78;
+  color: #31453a;
+}
+
+.planner-intro-points {
+  margin: 1.25rem 0 0;
+  padding-left: 1.4rem;
+  display: grid;
+  gap: 0.9rem;
+  color: #1f3026;
+}
+
+.planner-intro-points li {
+  padding-left: 0.2rem;
+  font-size: 1.05rem;
+  line-height: 1.75;
+}
+
+.planner-intro-highlight {
+  display: inline-block;
+  margin: 0 0.1rem;
+  padding: 0.02rem 0.45rem 0.08rem;
+  border-radius: 999px;
+  background: #173d26;
+  color: #f2fbf0;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.planner-intro-warning {
+  margin-top: 1.35rem;
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  background: rgba(186, 37, 37, 0.08);
+  border: 1px solid rgba(186, 37, 37, 0.2);
+  color: #b52a2a;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.7;
+}
+
+.planner-intro-action {
+  margin-top: 1.35rem;
+  min-width: 12rem;
+}
+
 .planner-shell {
   position: relative;
   z-index: 1;
@@ -2752,6 +2855,26 @@ h4 {
 @media (max-width: 760px) {
   .route-planner-page {
     padding-top: 4.35rem;
+  }
+
+  .planner-intro-modal {
+    padding: 1.5rem 1rem 1.25rem;
+    border-radius: 1.3rem;
+  }
+
+  .planner-intro-close {
+    top: 0.7rem;
+    right: 0.7rem;
+  }
+
+  .planner-intro-copy,
+  .planner-intro-points li,
+  .planner-intro-warning {
+    font-size: 0.98rem;
+  }
+
+  .planner-intro-action {
+    width: 100%;
   }
 
   .planner-shell {
