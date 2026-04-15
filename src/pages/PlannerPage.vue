@@ -48,20 +48,63 @@
       <article class="planner-card planner-start-card">
         <h1>Let's start your journey</h1>
         <p class="planner-start-label">Starting from</p>
+        <p class="planner-start-copy">
+          Choose your starting point first. You can use your current location or pick a point directly on the map.
+        </p>
         <div class="planner-location-row">
-          <div class="planner-location-chip">
+          <div class="planner-location-chip" :class="{ 'is-empty': !hasStartLocation }">
             <img class="planner-location-icon" :src="locationIcon" alt="" aria-hidden="true" />
             <div>
               <strong>{{ locationLabel }}</strong>
+              <small>{{ locationMeta }}</small>
             </div>
           </div>
-          <button class="btn btn-light planner-location-btn" @click="useMyLocation" :disabled="isLocating || isLoadingPlan">
-            {{ isLocating ? 'Locating...' : 'Use my current location' }}
+          <div class="planner-location-actions">
+            <button class="btn btn-light planner-location-btn" @click="useMyLocation" :disabled="isLocating || isLoadingPlan">
+              {{ isLocating ? 'Locating...' : 'Use my current location' }}
+            </button>
+            <button class="btn planner-map-pick-btn" type="button" @click="openMapPicker" :disabled="isLoadingPlan">
+              Choose on map
+            </button>
+          </div>
+        </div>
+        <p v-if="!hasStartLocation" class="planner-start-note">Select a supported starting point to unlock destination options.</p>
+        <p v-if="errorMessage && !hasStartLocation" class="planner-start-error">{{ errorMessage }}</p>
+      </article>
+
+      <article v-if="isPickingOnMap" class="planner-card planner-map-picker-card" ref="pickerCardEl">
+        <div class="planner-map-picker-head">
+          <div>
+            <p class="planner-map-picker-kicker">MAP PICKER</p>
+            <h2>Select a starting point in Central Melbourne</h2>
+          </div>
+          <button class="planner-map-picker-close" type="button" @click="cancelMapPicker">Close</button>
+        </div>
+
+        <p class="planner-map-picker-copy">
+          The map is focused on the supported area so you can quickly drop a starting point inside Central Melbourne.
+        </p>
+
+        <div class="planner-map-picker-frame">
+          <div ref="pickerMapEl" class="planner-picker-map"></div>
+        </div>
+
+        <p class="planner-map-picker-range">
+          Supported area: CBD, Docklands, Southbank, Kensington, North Melbourne, West Melbourne,
+          East Melbourne, Parkville, Carlton, and South Yarra.
+        </p>
+
+        <p v-if="pickerMessage" class="planner-map-picker-message">{{ pickerMessage }}</p>
+
+        <div class="planner-map-picker-actions">
+          <button class="btn planner-change-btn" type="button" @click="cancelMapPicker">Cancel</button>
+          <button class="btn btn-primary planner-confirm-pick-btn" type="button" @click="confirmMapLocation" :disabled="!pendingMapLocation">
+            Use selected point
           </button>
         </div>
       </article>
 
-      <article class="planner-card planner-type-card-wrap" ref="typeSectionEl">
+      <article v-if="hasStartLocation" class="planner-card planner-type-card-wrap" ref="typeSectionEl">
         <h2>Where would you like to go?</h2>
         <div class="planner-type-grid">
           <button
@@ -80,7 +123,14 @@
         </div>
       </article>
 
-      <section class="planner-result-anchor" ref="resultAnchorEl">
+      <article v-else class="planner-card planner-flow-hint-card">
+        <h2>Choose your starting point first</h2>
+        <p>
+          Once your starting point is set, GreenPath will show destination types and recommend one route option inside the supported area.
+        </p>
+      </article>
+
+      <section v-if="hasStartLocation" class="planner-result-anchor" ref="resultAnchorEl">
         <article v-if="hasSelectedType && isLoadingPlan" class="planner-card planner-result-loading-card">
           <span class="planner-spinner" aria-hidden="true"></span>
           <h3>Searching route options...</h3>
@@ -314,6 +364,10 @@ import walkIcon from '../assets/svg/walk.svg'
 import timeIcon from '../assets/svg/time-icon.svg'
 
 const DEFAULT_LOCATION = { lat: -37.8136, lng: 144.9631 }
+const SUPPORTED_AREA_BOUNDS = [
+  [-37.848, 144.89],
+  [-37.77, 145.02]
+]
 const DEFAULT_API_BASE_URL = 'https://g5m02vygkj.execute-api.ap-southeast-2.amazonaws.com'
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '')
@@ -332,11 +386,14 @@ const isLocating = ref(false)
 const isRouteView = ref(false)
 const hasSearched = ref(false)
 const showPlannerIntro = ref(true)
+const isPickingOnMap = ref(false)
+const pendingMapLocation = ref(null)
+const pickerMessage = ref('')
 
 const userLocation = reactive({
-  lat: DEFAULT_LOCATION.lat,
-  lng: DEFAULT_LOCATION.lng,
-  source: 'default'
+  lat: null,
+  lng: null,
+  source: 'unset'
 })
 
 const result = reactive({
@@ -349,15 +406,21 @@ const errorMessage = ref('')
 const infoMessage = ref('')
 const resultAnchorEl = ref(null)
 const typeSectionEl = ref(null)
+const pickerCardEl = ref(null)
 
 const mapEl = ref(null)
+const pickerMapEl = ref(null)
 let map = null
 let userLayer = null
 let destinationLayer = null
 let facilitiesLayer = null
 let routeLayer = null
+let pickerMap = null
+let pickerSelectionLayer = null
+let pickerBoundsLayer = null
 let activeRequestId = 0
 
+const hasStartLocation = computed(() => Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng) && userLocation.source !== 'unset')
 const hasSelectedType = computed(() => !!selectedType.value)
 const hasDestination = computed(() => !!result.destination)
 
@@ -366,7 +429,17 @@ const selectedTypeLabel = computed(() => {
   return item ? item.label : 'Destination'
 })
 
-const locationLabel = computed(() => (userLocation.source === 'live' ? 'Current location' : 'Melbourne CBD (Default)'))
+const locationLabel = computed(() => {
+  if (userLocation.source === 'live') return 'Current location selected'
+  if (userLocation.source === 'map') return 'Map point selected'
+  return 'Starting point not set'
+})
+
+const locationMeta = computed(() => {
+  if (!hasStartLocation.value) return 'Choose your location to begin.'
+  if (userLocation.source === 'live') return 'Detected from your device.'
+  return `Pinned at ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`
+})
 
 const resultImage = computed(() => {
   const match = destinationTypes.find((item) => item.id === selectedType.value)
@@ -449,6 +522,121 @@ const clearResult = () => {
   result.route = []
 }
 
+const setStartLocation = (lat, lng, source) => {
+  userLocation.lat = lat
+  userLocation.lng = lng
+  userLocation.source = source
+  errorMessage.value = ''
+  pickerMessage.value = ''
+}
+
+const ensureSupportedPoint = (latlng) => {
+  const bounds = L.latLngBounds(SUPPORTED_AREA_BOUNDS)
+  return bounds.contains(latlng)
+}
+
+const updatePickerMarker = (latlng) => {
+  if (!pickerMap || !pickerSelectionLayer) return
+  pickerSelectionLayer.clearLayers()
+  L.circleMarker(latlng, {
+    radius: 10,
+    color: '#124f24',
+    weight: 3,
+    fillColor: '#7fc96a',
+    fillOpacity: 0.95
+  }).addTo(pickerSelectionLayer)
+}
+
+const handlePickerMapClick = (event) => {
+  if (!ensureSupportedPoint(event.latlng)) {
+    pickerMessage.value = 'Please choose a point inside the supported Central Melbourne area.'
+    return
+  }
+
+  pendingMapLocation.value = {
+    lat: event.latlng.lat,
+    lng: event.latlng.lng
+  }
+  pickerMessage.value = 'Point selected. Confirm to continue.'
+  updatePickerMarker(event.latlng)
+}
+
+const ensurePickerMap = () => {
+  if (pickerMap || !pickerMapEl.value) return
+
+  pickerMap = L.map(pickerMapEl.value, { zoomControl: true, scrollWheelZoom: true, attributionControl: true })
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+    subdomains: 'abcd',
+    maxZoom: 20
+  }).addTo(pickerMap)
+
+  pickerBoundsLayer = L.layerGroup().addTo(pickerMap)
+  pickerSelectionLayer = L.layerGroup().addTo(pickerMap)
+
+  L.rectangle(SUPPORTED_AREA_BOUNDS, {
+    color: '#2f7f4a',
+    weight: 2,
+    fillColor: '#8fcb9d',
+    fillOpacity: 0.14,
+    dashArray: '8 8'
+  }).addTo(pickerBoundsLayer)
+
+  pickerMap.on('click', handlePickerMapClick)
+  pickerMap.fitBounds(SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
+}
+
+const destroyPickerMap = () => {
+  if (!pickerMap) return
+  pickerMap.off('click', handlePickerMapClick)
+  pickerMap.remove()
+  pickerMap = null
+  pickerSelectionLayer = null
+  pickerBoundsLayer = null
+}
+
+const openMapPicker = async () => {
+  isPickingOnMap.value = true
+  pickerMessage.value = ''
+
+  if (userLocation.source === 'map' && hasStartLocation.value) {
+    pendingMapLocation.value = { lat: userLocation.lat, lng: userLocation.lng }
+  } else {
+    pendingMapLocation.value = null
+  }
+
+  await nextTick()
+  ensurePickerMap()
+  pickerMap?.fitBounds(SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
+
+  if (pendingMapLocation.value) {
+    const latlng = L.latLng(pendingMapLocation.value.lat, pendingMapLocation.value.lng)
+    updatePickerMarker(latlng)
+    pickerMap?.panTo(latlng)
+  }
+
+  scrollTo(pickerCardEl.value)
+}
+
+const cancelMapPicker = () => {
+  isPickingOnMap.value = false
+  pendingMapLocation.value = null
+  pickerMessage.value = ''
+}
+
+const confirmMapLocation = async () => {
+  if (!pendingMapLocation.value) return
+  setStartLocation(pendingMapLocation.value.lat, pendingMapLocation.value.lng, 'map')
+  isPickingOnMap.value = false
+
+  if (hasSelectedType.value) {
+    await requestPlan()
+  }
+
+  await nextTick()
+  scrollTo(typeSectionEl.value)
+}
+
 const toFiniteNumber = (value, fallback = null) => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
@@ -511,13 +699,13 @@ const fetchJson = async (url, options = {}, timeoutMs = 20000) => {
 }
 
 const requestPlan = async () => {
-  if (!selectedType.value) return
+  if (!selectedType.value || !hasStartLocation.value) return
 
   const requestId = ++activeRequestId
   const requestType = selectedType.value
   const requestLat = Number.isFinite(Number(userLocation.lat)) ? Number(userLocation.lat) : DEFAULT_LOCATION.lat
   const requestLng = Number.isFinite(Number(userLocation.lng)) ? Number(userLocation.lng) : DEFAULT_LOCATION.lng
-  const maxAttempts = userLocation.source === 'default' ? 2 : 1
+  const maxAttempts = 1
 
   hasSearched.value = true
   isLoadingPlan.value = true
@@ -567,7 +755,7 @@ const requestPlan = async () => {
 
 const useMyLocation = async () => {
   if (!navigator.geolocation) {
-    errorMessage.value = 'Geolocation is unavailable. Using Melbourne CBD default location.'
+    errorMessage.value = 'Geolocation is unavailable on this device. Please choose a point on the map instead.'
     return
   }
 
@@ -580,19 +768,19 @@ const useMyLocation = async () => {
         maximumAge: 300000
       })
     })
-    userLocation.lat = position.coords.latitude
-    userLocation.lng = position.coords.longitude
-    userLocation.source = 'live'
+    const nextPoint = L.latLng(position.coords.latitude, position.coords.longitude)
+    if (!ensureSupportedPoint(nextPoint)) {
+      errorMessage.value = 'Your current location is outside the supported Central Melbourne area. Please choose a point on the map.'
+      return
+    }
+    setStartLocation(nextPoint.lat, nextPoint.lng, 'live')
   } catch {
-    userLocation.lat = DEFAULT_LOCATION.lat
-    userLocation.lng = DEFAULT_LOCATION.lng
-    userLocation.source = 'default'
-    errorMessage.value = 'Could not detect your location. Using Melbourne CBD default.'
+    errorMessage.value = 'Could not detect your location. Please choose a point on the map.'
   } finally {
     isLocating.value = false
   }
 
-  if (hasSelectedType.value) requestPlan()
+  if (hasSelectedType.value && hasStartLocation.value) requestPlan()
 }
 
 const clearDestinationChoice = () => {
@@ -756,9 +944,15 @@ watch(selectedType, async () => {
     hasSearched.value = false
     return
   }
+  if (!hasStartLocation.value) return
   requestPlan()
   await nextTick()
   scrollTo(resultAnchorEl.value)
+})
+
+watch(isPickingOnMap, (visible) => {
+  if (visible) return
+  destroyPickerMap()
 })
 
 watch(
@@ -779,5 +973,6 @@ watch(
 onBeforeUnmount(() => {
   map?.remove()
   map = null
+  destroyPickerMap()
 })
 </script>

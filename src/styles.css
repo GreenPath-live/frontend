@@ -1895,10 +1895,17 @@ h4 {
   text-transform: uppercase;
 }
 
+.planner-start-copy {
+  margin-top: 0.45rem;
+  max-width: 58ch;
+  color: #4b5c51;
+  font-size: 1.05rem;
+}
+
 .planner-location-row {
   margin-top: 0.65rem;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: flex-start;
   gap: 0.75rem;
 }
@@ -1906,6 +1913,11 @@ h4 {
 .planner-location-area {
   display: grid;
   gap: 0.65rem;
+}
+
+.planner-location-actions {
+  display: grid;
+  gap: 0.75rem;
 }
 
 .planner-location-chip {
@@ -1919,6 +1931,11 @@ h4 {
   background: #eceeeb;
   color: #23392b;
   flex: 0 0 350px;
+}
+
+.planner-location-chip.is-empty {
+  background: #f0f1ee;
+  border-style: dashed;
 }
 
 .planner-location-icon {
@@ -1950,6 +1967,133 @@ h4 {
   font-size: 1.03rem;
   font-weight: 700;
   border: 1px solid #b4d0b7;
+}
+
+.planner-map-pick-btn {
+  min-height: 3.1rem;
+  min-width: 320px;
+  border: 1px solid #d5dccf;
+  background: #f0efe8;
+  color: #1f3428;
+  font-size: 1.03rem;
+  font-weight: 700;
+}
+
+.planner-map-pick-btn:hover {
+  background: #e8e8de;
+}
+
+.planner-start-note {
+  margin-top: 0.8rem;
+  color: #7a4a3a;
+  font-weight: 700;
+}
+
+.planner-start-error {
+  margin-top: 0.55rem;
+  color: #b13a31;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.planner-map-picker-card {
+  display: grid;
+  gap: 1rem;
+}
+
+.planner-map-picker-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.planner-map-picker-kicker {
+  margin: 0;
+  color: #2f7f4a;
+  font-size: 0.82rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.planner-map-picker-head h2 {
+  margin-top: 0.28rem;
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(1.5rem, 3vw, 2.2rem);
+  color: #1e2822;
+}
+
+.planner-map-picker-close {
+  border: none;
+  background: transparent;
+  color: #3c5649;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.planner-map-picker-copy {
+  color: #4b5f52;
+  font-size: 1rem;
+}
+
+.planner-map-picker-frame {
+  border-radius: 1.2rem;
+  overflow: hidden;
+  border: 1px solid #d9e3d7;
+  min-height: 360px;
+  background: #d9ddd8;
+}
+
+.planner-picker-map {
+  width: 100%;
+  min-height: 360px;
+}
+
+.planner-map-picker-range {
+  margin: 0;
+  padding: 0.9rem 1rem;
+  border-radius: 1rem;
+  background: #edf5ea;
+  color: #29553b;
+  font-weight: 700;
+  line-height: 1.6;
+}
+
+.planner-map-picker-message {
+  margin: 0;
+  color: #8f3c2d;
+  font-weight: 700;
+}
+
+.planner-map-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.planner-confirm-pick-btn {
+  min-width: 220px;
+}
+
+.planner-flow-hint-card {
+  background: linear-gradient(180deg, rgba(247, 248, 245, 0.98), rgba(238, 242, 236, 0.98));
+  text-align: center;
+  padding-top: 2rem;
+  padding-bottom: 2rem;
+}
+
+.planner-flow-hint-card h2 {
+  font-family: 'Manrope', sans-serif;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  color: #1a2920;
+}
+
+.planner-flow-hint-card p {
+  margin: 0.8rem auto 0;
+  max-width: 56ch;
+  color: #4d5d52;
+  font-size: 1.05rem;
 }
 
 .planner-location-btn:disabled {
@@ -2833,6 +2977,10 @@ h4 {
     align-items: stretch;
   }
 
+  .planner-location-actions {
+    width: 100%;
+  }
+
   .planner-result-card {
     grid-template-columns: 1fr;
   }
@@ -2887,9 +3035,19 @@ h4 {
   }
 
   .planner-location-chip,
-  .planner-location-btn {
+  .planner-location-btn,
+  .planner-map-pick-btn {
     flex: none;
     width: 100%;
+  }
+
+  .planner-map-picker-head {
+    flex-direction: column;
+  }
+
+  .planner-map-picker-frame,
+  .planner-picker-map {
+    min-height: 300px;
   }
 
   .planner-start-card h1 {
