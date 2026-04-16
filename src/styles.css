@@ -246,10 +246,7 @@ h4 {
   display: flex;
   align-items: center;
   padding: 7rem 0 4.5rem;
-  background-image: url('https://images.pexels.com/photos/1179229/pexels-photo-1179229.jpeg?auto=compress&cs=tinysrgb&w=2200&h=1400&dpr=1');
-  background-size: cover;
-  background-position: center 48%;
-  background-repeat: no-repeat;
+  background: #122219;
   overflow: hidden;
 }
 
