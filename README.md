@@ -1,6 +1,6 @@
-# GreenPath Frontend
+# Shadeo Frontend
 
-GreenPath is a Vue 3 + Vite frontend focused on helping older adults plan walking routes with more comfort and confidence. The interface highlights safer and more accessible walking decisions by surfacing route support information such as distance, facilities, and route context.
+Shadeo is a Vue 3 + Vite frontend focused on helping older adults plan walking routes with more comfort and confidence. The interface highlights safer and more accessible walking decisions by surfacing route support information such as distance, facilities, and route context.
 
 ## Tech Stack
 
