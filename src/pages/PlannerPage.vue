@@ -394,9 +394,14 @@ const SUPPORTED_AREA_BOUNDS = [
   [-37.848, 144.89],
   [-37.77, 145.02]
 ]
-const DEFAULT_API_BASE_URL = 'https://g5m02vygkj.execute-api.ap-southeast-2.amazonaws.com'
+const DEFAULT_API_BASE_URL = ''
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '')
+const DEFAULT_TILE_URL_TEMPLATE = '/tiles/{z}/{x}/{y}.png'
+const TILE_URL_TEMPLATE = import.meta.env.VITE_TILE_URL_TEMPLATE || DEFAULT_TILE_URL_TEMPLATE
+const TILE_ATTRIBUTION = import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; OpenStreetMap contributors'
+const TILE_SUBDOMAINS = import.meta.env.VITE_TILE_SUBDOMAINS || ''
+const TILE_MAX_ZOOM = Number(import.meta.env.VITE_TILE_MAX_ZOOM || 20)
 
 const destinationTypes = [
   { id: 'pharmacy', label: 'Pharmacy', icon: pharmacyIcon, image: pharmacyPic },
@@ -423,13 +428,28 @@ const userLocation = reactive({
 })
 
 const result = reactive({
+  recommendationId: null,
   destination: null,
   facilities: [],
   route: [],
   metrics: {
     distanceMeters: null,
     durationMinutes: null
-  }
+  },
+  score: null,
+  scoreBreakdown: {},
+  comfortNotes: [],
+  instructions: []
+})
+
+const recommendations = ref([])
+const selectedRecommendationId = ref(null)
+const preferences = reactive({
+  bench: true,
+  toilet: true,
+  drinking_fountain: true,
+  shade: true,
+  slope: true
 })
 
 const errorMessage = ref('')
@@ -531,6 +551,9 @@ const scrollTo = (el) => {
 }
 
 const clearResult = () => {
+  recommendations.value = []
+  selectedRecommendationId.value = null
+  result.recommendationId = null
   result.destination = null
   result.facilities = []
   result.route = []
@@ -538,6 +561,10 @@ const clearResult = () => {
     distanceMeters: null,
     durationMinutes: null
   }
+  result.score = null
+  result.scoreBreakdown = {}
+  result.comfortNotes = []
+  result.instructions = []
 }
 
 const setStartLocation = (lat, lng, source) => {
@@ -583,11 +610,7 @@ const ensurePickerMap = () => {
   if (pickerMap || !pickerMapEl.value) return
 
   pickerMap = L.map(pickerMapEl.value, { zoomControl: true, scrollWheelZoom: true, attributionControl: true })
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
-    subdomains: 'abcd',
-    maxZoom: 20
-  }).addTo(pickerMap)
+  addBaseTileLayer(pickerMap)
 
   pickerBoundsLayer = L.layerGroup().addTo(pickerMap)
   pickerSelectionLayer = L.layerGroup().addTo(pickerMap)
@@ -707,20 +730,111 @@ const normalizePlanMetrics = (routeSummary) => {
   }
 }
 
-const normalizePlanResponse = (payload) => {
-  const normalizedDestination = normalizeDestination(payload?.destination)
-  const normalizedRoute = Array.isArray(payload?.route)
-    ? payload.route.map(normalizeRoutePoint).filter(Boolean)
+const normalizeInstructions = (instructions) => {
+  if (!Array.isArray(instructions)) return []
+  return instructions
+    .filter((instruction) => instruction && typeof instruction === 'object')
+    .map((instruction) => ({
+      ...instruction,
+      text: typeof instruction.text === 'string' ? instruction.text : '',
+      distanceMeters: toFiniteNumber(instruction.distanceMeters),
+      nearbyFacilities: normalizeFacilities(instruction.nearbyFacilities)
+    }))
+}
+
+const normalizeRecommendation = (recommendation, index = 0) => {
+  if (!recommendation || typeof recommendation !== 'object') return null
+
+  const normalizedDestination = normalizeDestination(recommendation.destination)
+  const normalizedRoute = Array.isArray(recommendation.route)
+    ? recommendation.route.map(normalizeRoutePoint).filter(Boolean)
     : []
-  const normalizedMetrics = normalizePlanMetrics(payload?.routeSummary)
+  const normalizedMetrics = normalizePlanMetrics(recommendation.routeSummary)
 
   return {
+    id: recommendation.id || `rec_${index + 1}`,
     destination: normalizedDestination,
     route: normalizedRoute,
-    facilities: normalizeFacilities(payload?.facilities),
+    facilities: normalizeFacilities(recommendation.facilities),
     metrics: normalizedMetrics,
+    score: toFiniteNumber(recommendation.score),
+    scoreBreakdown: recommendation.scoreBreakdown && typeof recommendation.scoreBreakdown === 'object'
+      ? { ...recommendation.scoreBreakdown }
+      : {},
+    comfortNotes: Array.isArray(recommendation.comfortNotes)
+      ? recommendation.comfortNotes.filter((note) => typeof note === 'string')
+      : [],
+    instructions: normalizeInstructions(recommendation.instructions)
+  }
+}
+
+const normalizePlanResponse = (payload) => {
+  const normalizedRecommendations = Array.isArray(payload?.recommendations)
+    ? payload.recommendations
+      .map((recommendation, index) => normalizeRecommendation(recommendation, index))
+      .filter((recommendation) => recommendation?.destination)
+    : []
+
+  if (!normalizedRecommendations.length) {
+    const legacyRecommendation = normalizeRecommendation({
+      id: 'rec_1',
+      destination: payload?.destination,
+      route: payload?.route,
+      facilities: payload?.facilities,
+      routeSummary: payload?.routeSummary,
+      score: payload?.score,
+      scoreBreakdown: payload?.scoreBreakdown,
+      comfortNotes: payload?.comfortNotes,
+      instructions: payload?.instructions
+    })
+
+    if (legacyRecommendation?.destination) normalizedRecommendations.push(legacyRecommendation)
+  }
+
+  const selectedRecommendation = normalizedRecommendations[0] || null
+
+  return {
+    recommendations: normalizedRecommendations,
+    selectedRecommendation,
+    destination: selectedRecommendation?.destination || null,
+    route: selectedRecommendation?.route || [],
+    facilities: selectedRecommendation?.facilities || [],
+    metrics: selectedRecommendation?.metrics || normalizePlanMetrics(payload?.routeSummary),
+    score: selectedRecommendation?.score ?? null,
+    scoreBreakdown: selectedRecommendation?.scoreBreakdown || {},
+    comfortNotes: selectedRecommendation?.comfortNotes || [],
+    instructions: selectedRecommendation?.instructions || [],
     message: typeof payload?.message === 'string' ? payload.message : ''
   }
+}
+
+const buildApiUrl = (path) => `${API_BASE_URL}${path}`
+
+const addBaseTileLayer = (targetMap) => {
+  const options = {
+    attribution: TILE_ATTRIBUTION,
+    maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20
+  }
+
+  if (TILE_SUBDOMAINS) options.subdomains = TILE_SUBDOMAINS
+
+  return L.tileLayer(TILE_URL_TEMPLATE, options).addTo(targetMap)
+}
+
+const applySelectedRecommendation = (recommendation) => {
+  selectedRecommendationId.value = recommendation?.id || null
+  result.recommendationId = recommendation?.id || null
+  result.destination = recommendation?.destination || null
+  result.facilities = recommendation?.facilities || []
+  result.route = recommendation?.route || []
+  result.metrics = recommendation?.metrics || {
+    distanceMeters: null,
+    durationMinutes: null
+  }
+  result.score = recommendation?.score ?? null
+  result.scoreBreakdown = recommendation?.scoreBreakdown || {}
+  result.comfortNotes = recommendation?.comfortNotes || []
+  result.instructions = recommendation?.instructions || []
 }
 
 const fetchJson = async (url, options = {}, timeoutMs = 20000) => {
@@ -754,13 +868,15 @@ const requestPlan = async () => {
   try {
     let payload = null
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      payload = await fetchJson(`${API_BASE_URL}/api/route/plan`, {
+      payload = await fetchJson(buildApiUrl('/api/route/plan'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: requestType,
           userLat: requestLat,
-          userLng: requestLng
+          userLng: requestLng,
+          destinationMode: 'type',
+          preferences: { ...preferences }
         })
       })
       // retry if destination found but route is empty (e.g. ORS cold-start failure)
@@ -773,10 +889,8 @@ const requestPlan = async () => {
 
     if (requestId !== activeRequestId) return
 
-    result.destination = payload.destination || null
-    result.facilities = payload.facilities || []
-    result.route = payload.route || []
-    result.metrics = payload.metrics
+    recommendations.value = payload.recommendations || []
+    applySelectedRecommendation(payload.selectedRecommendation)
     infoMessage.value = payload.message || 'Route recommendation is ready.'
 
     if (isRouteView.value) drawRouteMap()
@@ -848,12 +962,7 @@ const ensureMap = () => {
   if (map || !mapEl.value) return
   map = L.map(mapEl.value, { zoomControl: false }).setView([userLocation.lat, userLocation.lng], 15)
 
-  // CartoDB Positron – clean minimal basemap
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-    subdomains: 'abcd',
-    maxZoom: 20
-  }).addTo(map)
+  addBaseTileLayer(map)
 
   L.control.zoom({ position: 'bottomright' }).addTo(map)
 
