@@ -394,13 +394,25 @@ const SUPPORTED_AREA_BOUNDS = [
   [-37.848, 144.89],
   [-37.77, 145.02]
 ]
+const SUPPORTED_AREA_GEOJSON_URL = '/data/municipal-boundary.geojson'
+const MELBOURNE_MASK_BOUNDS = [
+  [-37.95, 144.75],
+  [-37.95, 145.15],
+  [-37.65, 145.15],
+  [-37.65, 144.75]
+]
+const MAP_VIEW_BOUNDS = [
+  [-37.895, 144.875],
+  [-37.735, 145.055]
+]
+const MAP_MIN_ZOOM = 12
 const DEFAULT_API_BASE_URL = ''
 const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
 const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '')
-const DEFAULT_TILE_URL_TEMPLATE = '/tiles/{z}/{x}/{y}.png'
+const DEFAULT_TILE_URL_TEMPLATE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 const TILE_URL_TEMPLATE = import.meta.env.VITE_TILE_URL_TEMPLATE || DEFAULT_TILE_URL_TEMPLATE
-const TILE_ATTRIBUTION = import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; OpenStreetMap contributors'
-const TILE_SUBDOMAINS = import.meta.env.VITE_TILE_SUBDOMAINS || ''
+const TILE_ATTRIBUTION = import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; OpenStreetMap contributors &copy; CARTO'
+const TILE_SUBDOMAINS = import.meta.env.VITE_TILE_SUBDOMAINS || 'abcd'
 const TILE_MAX_ZOOM = Number(import.meta.env.VITE_TILE_MAX_ZOOM || 20)
 
 const destinationTypes = [
@@ -465,10 +477,13 @@ let userLayer = null
 let destinationLayer = null
 let facilitiesLayer = null
 let routeLayer = null
+let supportAreaLayer = null
 let pickerMap = null
 let pickerSelectionLayer = null
 let pickerBoundsLayer = null
 let activeRequestId = 0
+let supportedAreaGeoJson = null
+let supportedAreaPromise = null
 
 const hasStartLocation = computed(() => Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng) && userLocation.source !== 'unset')
 const hasSelectedType = computed(() => !!selectedType.value)
@@ -575,9 +590,104 @@ const setStartLocation = (lat, lng, source) => {
   pickerMessage.value = ''
 }
 
+const loadSupportedAreaGeoJson = async () => {
+  if (supportedAreaGeoJson) return supportedAreaGeoJson
+  if (!supportedAreaPromise) {
+    supportedAreaPromise = fetch(SUPPORTED_AREA_GEOJSON_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Could not load supported boundary (${response.status})`)
+        return response.json()
+      })
+      .then((payload) => {
+        supportedAreaGeoJson = payload
+        return payload
+      })
+      .catch((error) => {
+        console.warn(error)
+        supportedAreaPromise = null
+        return null
+      })
+  }
+  return supportedAreaPromise
+}
+
+const getGeometryPolygons = (geometry) => {
+  if (!geometry) return []
+  if (geometry.type === 'Polygon') return [geometry.coordinates]
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates
+  return []
+}
+
+const getBoundaryPolygons = () => {
+  if (!supportedAreaGeoJson?.features) return []
+  return supportedAreaGeoJson.features.flatMap((feature) => getGeometryPolygons(feature.geometry))
+}
+
+const isPointInRing = (latlng, ring) => {
+  if (!Array.isArray(ring) || ring.length < 4) return false
+
+  const x = latlng.lng
+  const y = latlng.lat
+  let inside = false
+
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    const intersects = ((yi > y) !== (yj > y)) &&
+      (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi)
+    if (intersects) inside = !inside
+  }
+
+  return inside
+}
+
+const isPointInPolygon = (latlng, polygon) => {
+  const [outerRing, ...holes] = polygon || []
+  if (!isPointInRing(latlng, outerRing)) return false
+  return !holes.some((hole) => isPointInRing(latlng, hole))
+}
+
 const ensureSupportedPoint = (latlng) => {
+  const polygons = getBoundaryPolygons()
+  if (polygons.length) return polygons.some((polygon) => isPointInPolygon(latlng, polygon))
+
   const bounds = L.latLngBounds(SUPPORTED_AREA_BOUNDS)
   return bounds.contains(latlng)
+}
+
+const makeInverseMaskLatLngs = () => {
+  const holes = getBoundaryPolygons()
+    .map((polygon) => polygon?.[0])
+    .filter((ring) => Array.isArray(ring) && ring.length)
+    .map((ring) => ring.map(([lng, lat]) => [lat, lng]))
+
+  return [MELBOURNE_MASK_BOUNDS, ...holes]
+}
+
+const addSupportedAreaOverlay = async (targetMap, targetLayer, { interactive = false } = {}) => {
+  await loadSupportedAreaGeoJson()
+  if (!targetMap || !targetLayer || !supportedAreaGeoJson) return null
+
+  const mask = L.polygon(makeInverseMaskLatLngs(), {
+    stroke: false,
+    fillColor: '#f4f7f9',
+    fillOpacity: 0.56,
+    fillRule: 'evenodd',
+    interactive: false
+  }).addTo(targetLayer)
+
+  const boundary = L.geoJSON(supportedAreaGeoJson, {
+    interactive,
+    style: {
+      color: '#5f686e',
+      weight: 2.4,
+      opacity: 0.94,
+      fillColor: '#d7ebdc',
+      fillOpacity: 0.02
+    }
+  }).addTo(targetLayer)
+
+  return boundary.getBounds?.().isValid?.() ? boundary.getBounds() : mask.getBounds()
 }
 
 const updatePickerMarker = (latlng) => {
@@ -606,25 +716,28 @@ const handlePickerMapClick = (event) => {
   updatePickerMarker(event.latlng)
 }
 
-const ensurePickerMap = () => {
+const ensurePickerMap = async () => {
   if (pickerMap || !pickerMapEl.value) return
 
-  pickerMap = L.map(pickerMapEl.value, { zoomControl: true, scrollWheelZoom: true, attributionControl: true })
+  pickerMap = L.map(pickerMapEl.value, {
+    zoomControl: true,
+    scrollWheelZoom: true,
+    attributionControl: true,
+    minZoom: MAP_MIN_ZOOM,
+    maxBounds: MAP_VIEW_BOUNDS,
+    maxBoundsViscosity: 0.95
+  })
   addBaseTileLayer(pickerMap)
 
-  pickerBoundsLayer = L.layerGroup().addTo(pickerMap)
+  pickerBoundsLayer = L.featureGroup().addTo(pickerMap)
   pickerSelectionLayer = L.layerGroup().addTo(pickerMap)
 
-  L.rectangle(SUPPORTED_AREA_BOUNDS, {
-    color: '#2f7f4a',
-    weight: 2,
-    fillColor: '#8fcb9d',
-    fillOpacity: 0.14,
-    dashArray: '8 8'
-  }).addTo(pickerBoundsLayer)
+  const boundaryBounds = await addSupportedAreaOverlay(pickerMap, pickerBoundsLayer, { interactive: true })
 
   pickerMap.on('click', handlePickerMapClick)
-  pickerMap.fitBounds(SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
+  pickerMap.fitBounds(boundaryBounds?.isValid?.() ? boundaryBounds : SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
+  pickerMap.setMinZoom(MAP_MIN_ZOOM)
+  pickerMap.setMaxBounds(MAP_VIEW_BOUNDS)
 }
 
 const destroyPickerMap = () => {
@@ -647,8 +760,12 @@ const openMapPicker = async () => {
   }
 
   await nextTick()
-  ensurePickerMap()
-  pickerMap?.fitBounds(SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
+  await ensurePickerMap()
+
+  const pickerBounds = pickerBoundsLayer?.getBounds?.()
+  pickerMap?.fitBounds(pickerBounds?.isValid?.() ? pickerBounds : SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
+  pickerMap?.setMinZoom(MAP_MIN_ZOOM)
+  pickerMap?.setMaxBounds(MAP_VIEW_BOUNDS)
 
   if (pendingMapLocation.value) {
     const latlng = L.latLng(pendingMapLocation.value.lat, pendingMapLocation.value.lng)
@@ -813,7 +930,8 @@ const buildApiUrl = (path) => `${API_BASE_URL}${path}`
 const addBaseTileLayer = (targetMap) => {
   const options = {
     attribution: TILE_ATTRIBUTION,
-    maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20
+    maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20,
+    className: 'planner-basemap-tiles'
   }
 
   if (TILE_SUBDOMAINS) options.subdomains = TILE_SUBDOMAINS
@@ -958,14 +1076,21 @@ const changeLocation = () => {
   clearResult()
 }
 
-const ensureMap = () => {
+const ensureMap = async () => {
   if (map || !mapEl.value) return
-  map = L.map(mapEl.value, { zoomControl: false }).setView([userLocation.lat, userLocation.lng], 15)
+  map = L.map(mapEl.value, {
+    zoomControl: false,
+    minZoom: MAP_MIN_ZOOM,
+    maxBounds: MAP_VIEW_BOUNDS,
+    maxBoundsViscosity: 0.95
+  }).setView([userLocation.lat, userLocation.lng], 15)
 
   addBaseTileLayer(map)
 
   L.control.zoom({ position: 'bottomright' }).addTo(map)
 
+  supportAreaLayer = L.featureGroup().addTo(map)
+  await addSupportedAreaOverlay(map, supportAreaLayer)
   userLayer = L.layerGroup().addTo(map)
   destinationLayer = L.layerGroup().addTo(map)
   facilitiesLayer = L.layerGroup().addTo(map)
@@ -1071,7 +1196,7 @@ const openRouteView = async () => {
   document.documentElement.scrollTop = 0
   document.body.scrollTop = 0
   await nextTick()
-  ensureMap()
+  await ensureMap()
   drawRouteMap()
   // double-rAF: wait for browser layout to complete before fixing size
   requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1111,6 +1236,7 @@ watch(
       destinationLayer = null
       facilitiesLayer = null
       routeLayer = null
+      supportAreaLayer = null
     }
   }
 )
