@@ -1,178 +1,265 @@
-<template>
-  <main class="route-planner-page" :class="{ 'is-route-view': isRouteView }">
+﻿<template>
+  <main class="route-planner-page enhanced-planner" :class="{ 'is-route-view': isRouteView }">
     <div class="planner-scene" aria-hidden="true"></div>
     <div class="planner-scene-overlay" aria-hidden="true"></div>
 
-    <div
-      v-if="showPlannerIntro"
-      class="planner-intro-backdrop"
-      role="presentation"
-      @click.self="showPlannerIntro = false"
-    >
-      <section
-        class="planner-intro-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="planner-intro-title"
+    <nav class="planner-step-nav" aria-label="Planner progress">
+      <button
+        v-for="item in plannerSteps"
+        :key="item.id"
+        type="button"
+        :disabled="!canNavigateToStep(item.id)"
+        :class="{ active: currentStep === item.id, done: item.id < currentStep && canNavigateToStep(item.id), locked: !canNavigateToStep(item.id) }"
+        @click="jumpToStep(item.id)"
       >
-        <button class="planner-intro-close" type="button" aria-label="Close planner introduction" @click="showPlannerIntro = false">
-          ×
-        </button>
-        <p class="planner-intro-kicker">WELCOME TO GREENPATH</p>
-        <h2 id="planner-intro-title">GreenPath supports safer everyday travel for older adults.</h2>
-        <p class="planner-intro-copy">
-          This planner is designed to help older adults make comfortable and confident daily trips, not just the shortest ones.
-        </p>
+        <span>{{ item.id }}</span>
+        <small>{{ item.label }}</small>
+      </button>
+    </nav>
 
-        <ol class="planner-intro-points">
-          <li>Choose the type of destination you want to visit.</li>
-          <li>
-            We will recommend one <strong class="planner-intro-highlight">unique</strong> destination.
-            Distance is not our only priority. We also consider comfort, cooler walking conditions,
-            nearby rest facilities, and access to public toilets.
-          </li>
-        </ol>
-
-        <p class="planner-intro-warning">
-          GreenPath currently supports Central Melbourne only: CBD, Docklands, Southbank, Kensington,
-          North Melbourne, West Melbourne, East Melbourne, Parkville, Carlton, and South Yarra.
-        </p>
-
-        <button class="btn btn-primary planner-intro-action" type="button" @click="showPlannerIntro = false">
-          Start Planning
-        </button>
+    <section v-if="!isRouteView" class="planner-shell planner-flow-shell">
+      <section class="planner-flow-hero">
+        <h1>Plan a comfortable walk</h1>
       </section>
-    </div>
 
-    <section class="planner-shell" v-if="!isRouteView">
-      <!-- ── Step 1: Starting point ──────────────────────────── -->
-      <article class="planner-card planner-step-card" :class="{ 'step-confirmed': hasStartLocation }">
-        <div class="planner-step-badge">
-          <span class="planner-step-num">1</span> Starting Point
-        </div>
-
-        <!-- Confirmed state -->
-        <div v-if="hasStartLocation" class="planner-confirmed-row">
-          <span class="planner-confirmed-check">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          </span>
-          <div class="planner-confirmed-info">
-            <strong>{{ locationLabel }}</strong>
-            <small>{{ locationMeta }}</small>
-          </div>
-          <button class="planner-confirmed-change-btn" type="button" @click="changeLocation" :disabled="isLoadingPlan">
-            Change
-          </button>
-        </div>
-
-        <!-- Selection state -->
-        <template v-else>
-          <h1 class="planner-step-title">Where are you starting from?</h1>
-          <p class="planner-step-desc">Choose your starting point to unlock nearby route options.</p>
-          <div class="planner-loc-options">
-            <button
-              class="planner-loc-opt"
-              :class="{ 'is-loading': isLocating }"
-              @click="useMyLocation"
-              :disabled="isLocating || isLoadingPlan"
-            >
-              <span class="planner-loc-opt-icon planner-loc-opt-icon--gps">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M4.22 4.22l2.83 2.83m9.9 9.9 2.83 2.83M2 12h4m12 0h4M4.22 19.78l2.83-2.83m9.9-9.9 2.83-2.83"/></svg>
-              </span>
-              <span class="planner-loc-opt-body">
-                <strong>{{ isLocating ? 'Detecting location…' : 'Use my current location' }}</strong>
-                <small>Automatically detect via GPS</small>
-              </span>
-            </button>
-            <button
-              class="planner-loc-opt planner-loc-opt--map"
-              @click="openMapPicker"
-              :disabled="isLoadingPlan || isLocating"
-            >
-              <span class="planner-loc-opt-icon planner-loc-opt-icon--map">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
-              </span>
-              <span class="planner-loc-opt-body">
-                <strong>Pick a point on the map</strong>
-                <small>Drop a pin in Central Melbourne</small>
-              </span>
-            </button>
-          </div>
-          <p v-if="errorMessage" class="planner-loc-error-msg">{{ errorMessage }}</p>
-        </template>
-      </article>
-
-      <article v-if="isPickingOnMap" class="planner-card planner-map-picker-card" ref="pickerCardEl">
-        <div class="planner-map-picker-head">
+      <article v-if="currentStep === 1" class="planner-card planner-step-card planner-guided-card planner-step-pop" ref="startSectionEl">
+        <div class="planner-card-heading">
+          <span>1</span>
           <div>
-            <p class="planner-map-picker-kicker">MAP PICKER</p>
-            <h2>Select a starting point in Central Melbourne</h2>
+            <h2>Starting point</h2>
+            <p>Choose how GreenPath should set where your walk begins.</p>
           </div>
-          <button class="planner-map-picker-close" type="button" @click="cancelMapPicker">Close</button>
         </div>
 
-        <p class="planner-map-picker-copy">
-          The map is focused on the supported area so you can quickly drop a starting point inside Central Melbourne.
-        </p>
-
-        <div class="planner-map-picker-frame">
-          <div ref="pickerMapEl" class="planner-picker-map"></div>
-        </div>
-
-        <p class="planner-map-picker-range">
-          Supported area: CBD, Docklands, Southbank, Kensington, North Melbourne, West Melbourne,
-          East Melbourne, Parkville, Carlton, and South Yarra.
-        </p>
-
-        <p v-if="pickerMessage" class="planner-map-picker-message">{{ pickerMessage }}</p>
-
-        <div class="planner-map-picker-actions">
-          <button class="btn planner-change-btn" type="button" @click="cancelMapPicker">Cancel</button>
-          <button class="btn btn-primary planner-confirm-pick-btn" type="button" @click="confirmMapLocation" :disabled="!pendingMapLocation">
-            Use selected point
-          </button>
-        </div>
-      </article>
-
-      <!-- ── Step 2: Destination type (unlocked after location set) ── -->
-      <article v-if="hasStartLocation" class="planner-card planner-step-card planner-step-type" ref="typeSectionEl">
-        <div class="planner-step-badge planner-step-badge--two">
-          <span class="planner-step-num">2</span> Destination Type
-        </div>
-        <h2 class="planner-step-title">Where would you like to go?</h2>
-        <p class="planner-step-desc">Pick a category and we'll find the best match for your journey.</p>
-        <div class="planner-type-grid">
-          <button
-            v-for="item in destinationTypes"
-            :key="item.id"
-            class="planner-type-card"
-            :class="{ active: selectedType === item.id }"
-            :disabled="isLoadingPlan || isLocating"
-            @click="selectedType = item.id"
-          >
-            <span class="planner-type-icon" aria-hidden="true">
-              <img :src="item.icon" alt="" />
+        <div class="planner-choice-list">
+          <button class="planner-choice-row" :class="{ active: startMode === 'current' }" type="button" @click="useMyLocation">
+            <span class="planner-choice-icon" aria-hidden="true">
+              <img :src="locationIcon" alt="" />
             </span>
-            <span class="planner-type-name">{{ item.label }}</span>
+            <span>
+              <strong>{{ isLocating ? 'Detecting your current location...' : 'Use my current location' }}</strong>
+              <small>Best when you are already at the starting point.</small>
+            </span>
           </button>
+
+          <button class="planner-choice-row" :class="{ active: startMode === 'manual' }" type="button" @click="startMode = 'manual'">
+            <span class="planner-choice-icon" aria-hidden="true">
+              <img :src="searchIcon" alt="" />
+            </span>
+            <span>
+              <strong>Search address or place</strong>
+              <small>Type a street address, suburb, or landmark as your starting point.</small>
+            </span>
+          </button>
+        </div>
+
+        <form v-if="startMode === 'manual'" class="planner-search-box" @submit.prevent="runStartSearch">
+          <label for="planner-start-query">Enter your starting point</label>
+          <div class="planner-search-line">
+            <input
+              id="planner-start-query"
+              v-model.trim="startQuery"
+              type="text"
+              placeholder="Example: State Library Victoria, 328 Swanston St"
+            />
+            <button class="btn btn-primary" type="submit" :disabled="!startQuery || isSearchingStart">
+              {{ isSearchingStart ? 'Searching...' : 'Search' }}
+            </button>
+          </div>
+          <p>Search helps choose a start coordinate before sending the planning request to the backend.</p>
+        </form>
+
+        <div v-if="startSearchResults.length" class="planner-search-results" aria-label="Start search results">
+          <button
+            v-for="place in startSearchResults"
+            :key="place.id"
+            type="button"
+            :class="{ active: selectedStart?.id === place.id }"
+            @click="selectStartPlace(place)"
+          >
+            <strong>{{ place.name }}</strong>
+            <small>{{ place.address }}</small>
+          </button>
+        </div>
+
+        <p v-if="selectedStart" class="planner-selection-note">
+          Start selected: <strong>{{ selectedStart.name }}</strong>
+        </p>
+      </article>
+
+      <article v-if="currentStep === 2" class="planner-card planner-step-card planner-guided-card planner-step-pop" ref="destinationSectionEl">
+        <button class="planner-step-back-btn" type="button" @click="jumpToStep(1)">
+          <span aria-hidden="true">&lt;</span>
+          Back to starting point
+        </button>
+
+        <div class="planner-card-heading">
+          <span>2</span>
+          <div>
+            <h2>Destination</h2>
+            <p>First choose whether you already know the place, or want GreenPath to suggest by category.</p>
+          </div>
+        </div>
+
+        <div class="planner-segmented">
+          <button type="button" :class="{ active: destinationMode === 'category' }" @click="setDestinationMode('category')">
+            Choose by type
+          </button>
+          <button type="button" :class="{ active: destinationMode === 'specific' }" @click="setDestinationMode('specific')">
+            Search specific place
+          </button>
+        </div>
+
+        <div v-if="destinationMode === 'category'" class="planner-category-panel">
+          <p class="planner-panel-instruction">Select one destination type. The current backend returns one recommended option.</p>
+          <div class="planner-type-grid planner-type-grid-clean">
+            <button
+              v-for="item in destinationTypes"
+              :key="item.id"
+              class="planner-type-card"
+              :class="{ active: selectedType === item.id }"
+              type="button"
+              @click="chooseDestinationType(item.id)"
+            >
+              <span class="planner-type-icon" aria-hidden="true">
+                <img :src="item.icon" alt="" />
+              </span>
+              <span class="planner-type-name">{{ item.label }}</span>
+            </button>
+          </div>
+        </div>
+
+        <form v-if="destinationMode === 'specific'" class="planner-search-box" @submit.prevent="runDestinationSearch">
+          <label for="planner-destination-query">Search for a specific destination</label>
+          <div class="planner-search-line">
+            <input
+              id="planner-destination-query"
+              v-model.trim="destinationQuery"
+              type="text"
+              placeholder="Example: Chemist Warehouse Melbourne Central"
+            />
+            <button class="btn btn-primary" type="submit" :disabled="!destinationQuery || isSearchingDestination">
+              {{ isSearchingDestination ? 'Searching...' : 'Search' }}
+            </button>
+          </div>
+          <p>Use this path when you already know where you want to go.</p>
+        </form>
+
+        <div v-if="destinationSearchResults.length" class="planner-search-results" aria-label="Destination search results">
+          <button
+            v-for="place in destinationSearchResults"
+            :key="place.id"
+            type="button"
+            :class="{ active: selectedSpecificDestination?.id === place.id }"
+            @click="selectSpecificDestination(place)"
+          >
+            <strong>{{ place.name }}</strong>
+            <small>{{ place.address }}</small>
+          </button>
+        </div>
+
+        <p v-if="destinationReadyLabel" class="planner-selection-note">
+          Destination choice: <strong>{{ destinationReadyLabel }}</strong>
+        </p>
+
+        <div class="planner-flow-action">
+          <button class="btn btn-primary planner-continue-btn" type="button" :disabled="!canFindRecommendations || isLoadingPlan" @click="requestPlan">
+            {{ isLoadingPlan ? 'Requesting route...' : 'Continue to results' }}
+            <span aria-hidden="true">&gt;</span>
+          </button>
+          <p v-if="!canFindRecommendations">Choose a destination path first.</p>
         </div>
       </article>
 
-      <section v-if="hasStartLocation" class="planner-result-anchor" ref="resultAnchorEl">
-        <article v-if="hasSelectedType && isLoadingPlan" class="planner-card planner-result-loading-card">
+      <section class="planner-result-anchor" ref="resultsSectionEl">
+        <article v-if="currentStep === 3 && isLoadingPlan" class="planner-card planner-result-loading-card planner-step-pop">
           <span class="planner-spinner" aria-hidden="true"></span>
-          <h3>Finding your best route…</h3>
-          <p>We're searching for an ideal destination and planning a comfortable journey for you.</p>
+          <h3>Requesting your route...</h3>
+          <p>GreenPath is checking the backend planner for the nearest suitable result.</p>
         </article>
 
-        <article v-else-if="hasSelectedType && hasDestination" class="planner-card planner-result-card">
-          <figure class="planner-result-image-wrap">
-            <img :src="resultImage" :alt="`${selectedTypeLabel} route preview`" loading="lazy" />
-            <figcaption>Top pick for accessibility</figcaption>
-          </figure>
+        <article v-else-if="currentStep === 3 && hasSearched && recommendations.length && !hasDestination" class="planner-card planner-recommendation-layout planner-step-pop">
+          <div class="planner-recommendation-list">
+            <button class="planner-step-back-btn" type="button" @click="jumpToStep(2)">
+              <span aria-hidden="true">&lt;</span>
+              Back to destination
+            </button>
 
-          <div class="planner-result-content">
-            <h3>{{ result.destination.name }}</h3>
+            <div class="planner-section-headline">
+              <p>Results</p>
+              <h3>Compare nearby options</h3>
+              <span>Backend currently returns one recommended option. Select it to preview details.</span>
+            </div>
+            <article
+              v-for="(item, index) in recommendations"
+              :key="item.id"
+              class="planner-destination-card"
+              :class="{ 'is-top-result': index === 0, 'is-selected': highlightedRecommendationId === item.id }"
+              @click="highlightRecommendation(item)"
+            >
+              <span class="planner-destination-rank">{{ index + 1 }}</span>
+              <span class="planner-destination-body">
+                <span class="planner-destination-topline">
+                  <span v-if="index === 0" class="planner-rec-label">Most Recommended</span>
+                  <span class="planner-score-badge" :class="scoreTone(item.score)">
+                    <span aria-hidden="true">★</span>
+                    {{ formatScore(item.score) }}
+                  </span>
+                </span>
+                <strong>{{ item.destination.name }}</strong>
+                <small class="planner-destination-address">{{ item.destination.address }}</small>
+                <span class="planner-destination-metrics">
+                  <span>
+                    <img :src="timeIcon" alt="" aria-hidden="true" />
+                    {{ formatMinutes(item.metrics.durationMinutes) }} walk
+                  </span>
+                  <span>
+                    <img :src="locationPinIcon" alt="" aria-hidden="true" />
+                    {{ formatDistance(item.metrics.distanceMeters) }}
+                  </span>
+                </span>
+                <span class="planner-tag-row">
+                  <em v-for="note in item.comfortNotes.slice(0, index === 0 ? 3 : 2)" :key="note">{{ note }}</em>
+                </span>
+                <button
+                  v-if="highlightedRecommendationId === item.id"
+                  class="planner-view-details"
+                  type="button"
+                  @click.stop="selectRecommendation(item)"
+                >
+                  View details <span aria-hidden="true">&gt;</span>
+                </button>
+              </span>
+            </article>
+          </div>
+          <div class="planner-mini-map-panel">
+            <div class="planner-mini-map-head">
+              <strong>Nearby options</strong>
+              <span>Backend destination pin and your selected start point</span>
+            </div>
+            <div ref="miniMapEl" class="planner-mini-map"></div>
+          </div>
+        </article>
+
+        <article v-else-if="currentStep === 3 && hasSearched && !isLoadingPlan && !recommendations.length" class="planner-card planner-result-loading-card planner-step-pop">
+          <button class="planner-step-back-btn" type="button" @click="jumpToStep(2)">
+            <span aria-hidden="true">&lt;</span>
+            Back to destination
+          </button>
+          <h3>No route result found</h3>
+          <p>{{ planError || 'The backend did not return a suitable destination for this start point and category.' }}</p>
+        </article>
+
+        <article v-else-if="currentStep === 3 && hasDestination" class="planner-card planner-recommendation-layout planner-detail-layout planner-step-pop">
+          <div class="planner-detail-panel">
+            <button class="planner-back-btn" type="button" @click="backToRecommendations">Back to results</button>
+            <div class="planner-detail-title-row">
+              <img :src="selectedTypeIconUrl" alt="" />
+              <div>
+                <p>{{ result.destination.address }}</p>
+                <h3>{{ result.destination.name }}</h3>
+              </div>
+            </div>
 
             <div class="planner-metric-row">
               <span class="planner-metric-chip">
@@ -189,66 +276,134 @@
               </span>
             </div>
 
-            <div class="planner-feature-grid">
-              <div class="planner-feature-item">
-                <img :src="benchIcon" alt="" />
-                <p>{{ facilityBreakdown.bench }} places to rest</p>
-              </div>
-              <div class="planner-feature-item">
-                <img :src="toiletIcon" alt="" />
-                <p>{{ facilityBreakdown.toilet }} public toilets nearby</p>
-              </div>
-              <div class="planner-feature-item">
-                <img :src="slopeIcon" alt="" />
-                <p>{{ slopeSummary }}</p>
-              </div>
-              <div class="planner-feature-item">
-                <img :src="treesIcon" alt="" />
-                <p>{{ shadeSummary }}</p>
+            <div class="planner-detail-facilities">
+              <h3>Along the way</h3>
+              <div class="rv-fac-grid">
+                <div class="rv-fac-card rv-fac-bench" v-if="facilityBreakdown.bench > 0">
+                  <img :src="benchIcon" alt="" />
+                  <div>
+                    <strong>{{ facilityBreakdown.bench }}</strong>
+                    <span>Benches</span>
+                  </div>
+                </div>
+                <div class="rv-fac-card rv-fac-toilet" v-if="facilityBreakdown.toilet > 0">
+                  <img :src="toiletIcon" alt="" />
+                  <div>
+                    <strong>{{ facilityBreakdown.toilet }}</strong>
+                    <span>Toilets</span>
+                  </div>
+                </div>
+                <div class="rv-fac-card rv-fac-fountain" v-if="facilityBreakdown.drinking_fountain > 0">
+                  <img :src="fountainIcon" alt="" />
+                  <div>
+                    <strong>{{ facilityBreakdown.drinking_fountain }}</strong>
+                    <span>Fountains</span>
+                  </div>
+                </div>
+                <div
+                  v-if="facilityBreakdown.bench === 0 && facilityBreakdown.toilet === 0 && facilityBreakdown.drinking_fountain === 0"
+                  class="rv-no-facilities"
+                >
+                  No support facilities were returned along this route
+                </div>
               </div>
             </div>
 
             <div class="planner-summary-actions">
-              <button class="btn btn-primary planner-see-route-btn" @click="openRouteView" :disabled="!canSeeRoute || isLoadingPlan">
-                See route
+              <button class="btn btn-primary planner-see-route-btn" @click="openReadinessCheck" :disabled="!canSeeRoute">
+                Review Route
               </button>
-              <button class="btn planner-change-btn" @click="clearDestinationChoice" :disabled="isLoadingPlan || isLocating">
-                Change destination
+              <button class="btn planner-change-btn" @click="backToRecommendations">
+                Change
               </button>
             </div>
           </div>
-        </article>
-
-        <article
-          v-else-if="hasSelectedType && hasSearched && !isLoadingPlan && !hasDestination && !errorMessage"
-          class="planner-card planner-no-result-card"
-        >
-          <h3>No nearby {{ selectedTypeLabel.toLowerCase() }} found</h3>
-          <p>We could not find a suitable destination near this location. Try another type or update your location.</p>
-          <div class="planner-summary-actions">
-            <button class="btn planner-change-btn" @click="clearDestinationChoice">Try another type</button>
-            <button class="btn btn-light planner-location-btn" @click="useMyLocation" :disabled="isLocating">
-              {{ isLocating ? 'Locating...' : 'Update my location' }}
-            </button>
-          </div>
-        </article>
-
-        <article v-else-if="hasSelectedType && hasSearched && !isLoadingPlan && !!errorMessage" class="planner-card planner-no-result-card">
-          <h3>Service temporarily unavailable</h3>
-          <p>{{ errorMessage }}</p>
-          <div class="planner-summary-actions">
-            <button class="btn planner-change-btn" @click="requestPlan">Try again</button>
-            <button class="btn btn-light planner-location-btn" @click="useMyLocation" :disabled="isLocating">
-              {{ isLocating ? 'Locating...' : 'Update my location' }}
-            </button>
+          <div class="planner-mini-map-panel">
+            <div class="planner-mini-map-head">
+              <strong>Route preview</strong>
+              <span>Backend route and nearby comfort markers</span>
+            </div>
+            <div ref="miniMapEl" class="planner-mini-map"></div>
           </div>
         </article>
       </section>
     </section>
 
-    <section class="planner-route-shell" v-else>
+    <div v-if="isReadinessOpen" class="planner-readiness-backdrop" role="presentation" @click.self="isReadinessOpen = false">
+      <section class="planner-readiness-modal" role="dialog" aria-modal="true" aria-labelledby="readiness-title">
+        <div class="planner-readiness-head">
+          <div>
+            <p>Pre-trip Check</p>
+            <h2 id="readiness-title">Are you ready to go?</h2>
+          </div>
+          <button type="button" class="planner-map-picker-close" @click="isReadinessOpen = false">Close</button>
+        </div>
+
+        <button class="planner-step-back-btn" type="button" @click="closeReadinessToResults">
+          <span aria-hidden="true">&lt;</span>
+          Back to route details
+        </button>
+
+        <div class="planner-readiness-block">
+          <h3>How are you feeling today?</h3>
+          <div class="planner-condition-grid">
+            <button
+              v-for="item in conditionOptions"
+              :key="item.id"
+              type="button"
+              :class="{ active: readiness.condition === item.id }"
+              @click="readiness.condition = item.id"
+            >
+              <strong>{{ item.label }}</strong>
+              <small>{{ item.help }}</small>
+            </button>
+          </div>
+          <p v-if="conditionAdvice" class="planner-readiness-advice" :class="readiness.condition">
+            {{ conditionAdvice }}
+          </p>
+        </div>
+
+        <div class="planner-readiness-block">
+          <h3>Medication and support items</h3>
+          <label v-for="item in medicationItems" :key="item.id" class="planner-check-row">
+            <input v-model="readiness.medication" type="checkbox" :value="item.label" />
+            <span>{{ item.label }}</span>
+          </label>
+        </div>
+
+        <div class="planner-readiness-block">
+          <h3>Route-specific reminders</h3>
+          <ul class="planner-comfort-notes">
+            <li v-for="note in readinessRouteAlerts" :key="note">{{ note }}</li>
+          </ul>
+        </div>
+
+        <div class="planner-readiness-block">
+          <h3>Essentials and comfort items</h3>
+          <label v-for="item in essentialItems" :key="item.id" class="planner-check-row">
+            <input v-model="readiness.essentials" type="checkbox" :value="item.label" />
+            <span>{{ item.label }}</span>
+          </label>
+        </div>
+
+        <div class="planner-readiness-result">
+          <strong>{{ readinessResult.title }}</strong>
+          <span>{{ readinessResult.copy }}</span>
+        </div>
+
+        <div class="planner-summary-actions">
+          <button class="btn btn-primary planner-ready-btn" type="button" @click="confirmReadyToGo">Ready to Go</button>
+          <button class="btn planner-change-btn" type="button" disabled>Download route summary (coming soon)</button>
+        </div>
+      </section>
+    </div>
+
+    <section v-if="isRouteView" class="planner-route-shell">
       <aside class="planner-route-panel rv-panel">
-        <button class="planner-back-btn rv-back-btn" @click="isRouteView = false">← Back to search</button>
+        <button class="planner-back-btn rv-back-btn" @click="jumpToStep(4)">
+          <span class="rv-back-icon" aria-hidden="true">&lt;</span>
+          Back to readiness
+        </button>
 
         <div class="rv-dest-header">
           <div class="rv-dest-icon-wrap">
@@ -305,7 +460,7 @@
               v-if="facilityBreakdown.bench === 0 && facilityBreakdown.toilet === 0 && facilityBreakdown.drinking_fountain === 0"
               class="rv-no-facilities"
             >
-              No rest stops available along this route
+              No support facilities were returned along this route
             </div>
           </div>
         </div>
@@ -341,19 +496,19 @@
               <div class="rv-legend-icon rv-licon-fountain">
                 <img :src="fountainIcon" width="15" height="15" style="filter:invert(1)" />
               </div>
-              Drinking Fountain
+              Drinking fountain
             </div>
             <div class="rv-legend-row">
               <span class="rv-ldot rv-ldot-route"></span>
               Walking route
             </div>
-            <div class="rv-legend-row">
-              <span class="rv-ldot rv-ldot-shade"></span>
-              Tree canopy shade
-            </div>
           </div>
         </div>
 
+        <div class="rv-section">
+          <h3>Save route</h3>
+          <button class="btn planner-change-btn planner-export-btn" type="button" disabled>Download route summary (coming soon)</button>
+        </div>
       </aside>
 
       <section class="planner-route-map-area">
@@ -371,168 +526,147 @@
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import pharmacyPic from '../assets/pictures/pharmacy.png'
-import groceryPic from '../assets/pictures/grocery.png'
-import clinicPic from '../assets/pictures/clinic.png'
-import parkPic from '../assets/pictures/park.png'
-import cafePic from '../assets/pictures/cafe.png'
 import pharmacyIcon from '../assets/svg/pharmacy.svg'
 import groceryIcon from '../assets/svg/grocery.svg'
 import clinicIcon from '../assets/svg/clinic.svg'
 import parkIcon from '../assets/svg/park.svg'
 import cafeIcon from '../assets/svg/break-cafe.svg'
+import locationIcon from '../assets/svg/location-icon.svg'
+import locationPinIcon from '../assets/svg/location-pin.svg'
+import searchIcon from '../assets/svg/search.svg'
+import walkIcon from '../assets/svg/walk.svg'
+import timeIcon from '../assets/svg/time-icon.svg'
 import benchIcon from '../assets/svg/bench-icon.svg'
 import toiletIcon from '../assets/svg/toilet-icon.svg'
 import fountainIcon from '../assets/svg/drinking-fountain-icon.svg'
-import slopeIcon from '../assets/svg/slope-icon.svg'
-import treesIcon from '../assets/svg/trees-icon.svg'
-import walkIcon from '../assets/svg/walk.svg'
-import timeIcon from '../assets/svg/time-icon.svg'
 
-const DEFAULT_LOCATION = { lat: -37.8136, lng: 144.9631 }
-const SUPPORTED_AREA_BOUNDS = [
-  [-37.848, 144.89],
-  [-37.77, 145.02]
-]
-const SUPPORTED_AREA_GEOJSON_URL = '/data/municipal-boundary.geojson'
-const MELBOURNE_MASK_BOUNDS = [
-  [-37.95, 144.75],
-  [-37.95, 145.15],
-  [-37.65, 145.15],
-  [-37.65, 144.75]
-]
-const MAP_VIEW_BOUNDS = [
-  [-37.895, 144.875],
-  [-37.735, 145.055]
-]
+const DEFAULT_LOCATION = { id: 'current', name: 'Carlton North, VIC', address: 'Detected current location', lat: -37.7848, lng: 144.9721 }
+const MAP_VIEW_BOUNDS = [[-37.895, 144.875], [-37.735, 145.055]]
 const MAP_MIN_ZOOM = 12
-const DEFAULT_API_BASE_URL = ''
-const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL || DEFAULT_API_BASE_URL
-const API_BASE_URL = configuredApiBaseUrl.replace(/\/+$/, '')
-const DEFAULT_TILE_URL_TEMPLATE = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-const TILE_URL_TEMPLATE = import.meta.env.VITE_TILE_URL_TEMPLATE || DEFAULT_TILE_URL_TEMPLATE
+const TILE_URL_TEMPLATE = import.meta.env.VITE_TILE_URL_TEMPLATE || 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 const TILE_ATTRIBUTION = import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; OpenStreetMap contributors &copy; CARTO'
 const TILE_SUBDOMAINS = import.meta.env.VITE_TILE_SUBDOMAINS || 'abcd'
 const TILE_MAX_ZOOM = Number(import.meta.env.VITE_TILE_MAX_ZOOM || 20)
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
 
-const destinationTypes = [
-  { id: 'pharmacy', label: 'Pharmacy', icon: pharmacyIcon, image: pharmacyPic },
-  { id: 'grocery', label: 'Grocery', icon: groceryIcon, image: groceryPic },
-  { id: 'clinic', label: 'Clinic', icon: clinicIcon, image: clinicPic },
-  { id: 'garden', label: 'Park', icon: parkIcon, image: parkPic },
-  { id: 'cafe', label: 'Cafe', icon: cafeIcon, image: cafePic }
+const plannerSteps = [
+  { id: 1, label: 'Start' },
+  { id: 2, label: 'Destination' },
+  { id: 3, label: 'Results' },
+  { id: 4, label: 'Readiness' },
+  { id: 5, label: 'Route' }
 ]
 
+const destinationTypes = [
+  { id: 'pharmacy', label: 'Pharmacy', icon: pharmacyIcon },
+  { id: 'clinic', label: 'Clinic', icon: clinicIcon },
+  { id: 'grocery', label: 'Grocery', icon: groceryIcon },
+  { id: 'cafe', label: 'Cafe', icon: cafeIcon },
+  { id: 'garden', label: 'Park', icon: parkIcon }
+]
+
+const conditionOptions = [
+  { id: 'good', label: 'I feel good', help: 'Continue normally.' },
+  { id: 'tired', label: 'A little tired', help: 'Walk slowly and use rest stops.' },
+  { id: 'unwell', label: 'Not feeling well', help: 'Consider contacting someone before leaving.' }
+]
+
+const medicationItems = [
+  { id: 'daily', label: 'Daily medication' },
+  { id: 'emergency', label: 'Emergency medication' },
+  { id: 'support', label: 'Usual health support item, if this applies to you' },
+  { id: 'id', label: 'Medical ID or emergency contact card' }
+]
+
+const essentialItems = [
+  { id: 'water', label: 'Water bottle' },
+  { id: 'phone', label: 'Charged phone' },
+  { id: 'keys', label: 'Keys, wallet, or transport card' },
+  { id: 'shoes', label: 'Comfortable shoes or walking aid' },
+  { id: 'weather', label: 'Hat, sunscreen, umbrella, or jacket' },
+  { id: 'share', label: 'Share route with family or carer' }
+]
+
+const mockStartPlaces = [
+  DEFAULT_LOCATION,
+  { id: 'state-library', name: 'State Library Victoria', address: '328 Swanston St, Melbourne VIC', lat: -37.8099, lng: 144.9651 },
+  { id: 'fed-square', name: 'Federation Square', address: 'Swanston St & Flinders St, Melbourne VIC', lat: -37.8179, lng: 144.9691 },
+  { id: 'queen-victoria-market', name: 'Queen Victoria Market', address: 'Queen St, Melbourne VIC', lat: -37.8076, lng: 144.9568 }
+]
+
+const mockSpecificPlaces = [
+  { id: 'cw-central', name: 'Chemist Warehouse Melbourne Central', address: '211 La Trobe St, Melbourne VIC', type: 'pharmacy', lat: -37.8106, lng: 144.9631 },
+  { id: 'city-medical', name: 'City Medical Centre', address: '68 Lonsdale St, Melbourne VIC', type: 'clinic', lat: -37.8103, lng: 144.9701 },
+  { id: 'woolworths-qv', name: 'Woolworths QV', address: 'Cnr Swanston St and Lonsdale St, Melbourne VIC', type: 'grocery', lat: -37.8101, lng: 144.9654 }
+]
+
+const startMode = ref('')
+const destinationMode = ref('category')
+const selectedStart = ref(null)
+const selectedSpecificDestination = ref(null)
 const selectedType = ref('')
+const startQuery = ref('')
+const destinationQuery = ref('')
+const startSearchResults = ref([])
+const destinationSearchResults = ref([])
+const recommendations = ref([])
+const highlightedRecommendationId = ref('')
+const isSearchingStart = ref(false)
+const isSearchingDestination = ref(false)
 const isLoadingPlan = ref(false)
 const isLocating = ref(false)
+const isReadinessOpen = ref(false)
 const isRouteView = ref(false)
 const hasSearched = ref(false)
-const showPlannerIntro = ref(true)
-const isPickingOnMap = ref(false)
-const pendingMapLocation = ref(null)
-const pickerMessage = ref('')
+const planError = ref('')
+const visibleStep = ref(1)
+const maxReachableStep = ref(1)
 
-const userLocation = reactive({
-  lat: null,
-  lng: null,
-  source: 'unset'
-})
-
+const readiness = reactive({ condition: 'good', medication: [], essentials: [] })
 const result = reactive({
-  recommendationId: null,
   destination: null,
   facilities: [],
   route: [],
-  metrics: {
-    distanceMeters: null,
-    durationMinutes: null
-  },
+  metrics: { distanceMeters: null, durationMinutes: null },
   score: null,
   scoreBreakdown: {},
   comfortNotes: [],
   instructions: []
 })
 
-const recommendations = ref([])
-const selectedRecommendationId = ref(null)
-const preferences = reactive({
-  bench: true,
-  toilet: true,
-  drinking_fountain: true,
-  shade: true,
-  slope: true
-})
-
-const errorMessage = ref('')
-const infoMessage = ref('')
-const resultAnchorEl = ref(null)
-const typeSectionEl = ref(null)
-const pickerCardEl = ref(null)
-
+const startSectionEl = ref(null)
+const destinationSectionEl = ref(null)
+const resultsSectionEl = ref(null)
+const miniMapEl = ref(null)
 const mapEl = ref(null)
-const pickerMapEl = ref(null)
+
+let miniMap = null
+let miniMapLayer = null
 let map = null
 let userLayer = null
 let destinationLayer = null
 let facilitiesLayer = null
 let routeLayer = null
-let supportAreaLayer = null
-let pickerMap = null
-let pickerSelectionLayer = null
-let pickerBoundsLayer = null
-let activeRequestId = 0
-let supportedAreaGeoJson = null
-let supportedAreaPromise = null
 
-const hasStartLocation = computed(() => Number.isFinite(userLocation.lat) && Number.isFinite(userLocation.lng) && userLocation.source !== 'unset')
-const hasSelectedType = computed(() => !!selectedType.value)
 const hasDestination = computed(() => !!result.destination)
-
-const selectedTypeLabel = computed(() => {
-  const item = destinationTypes.find((d) => d.id === selectedType.value)
-  return item ? item.label : 'Destination'
+const selectedTypeLabel = computed(() => destinationTypes.find((d) => d.id === selectedType.value)?.label || selectedSpecificDestination.value?.type || 'Destination')
+const selectedTypeIconUrl = computed(() => destinationTypes.find((d) => d.id === selectedType.value || d.id === selectedSpecificDestination.value?.type)?.icon || parkIcon)
+const destinationReadyLabel = computed(() => {
+  if (destinationMode.value === 'specific') return selectedSpecificDestination.value?.name || ''
+  return selectedType.value ? selectedTypeLabel.value : ''
 })
-
-const locationLabel = computed(() => {
-  if (userLocation.source === 'live') return 'Current location selected'
-  if (userLocation.source === 'map') return 'Map point selected'
-  return 'Starting point not set'
+const canFindRecommendations = computed(() => !!selectedStart.value && (destinationMode.value === 'specific' ? !!selectedSpecificDestination.value : !!selectedType.value))
+const currentStep = computed(() => {
+  if (isRouteView.value) return 5
+  if (isReadinessOpen.value) return 4
+  return visibleStep.value
 })
-
-const locationMeta = computed(() => {
-  if (!hasStartLocation.value) return 'Choose your location to begin.'
-  if (userLocation.source === 'live') return 'Detected from your device.'
-  return `Pinned at ${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)}`
-})
-
-const resultImage = computed(() => {
-  const match = destinationTypes.find((item) => item.id === selectedType.value)
-  return match?.image || parkPic
-})
-
-const routeDistanceMeters = computed(() => {
-  if (!Number.isFinite(result.metrics?.distanceMeters)) return 0
-  return Math.max(0, Math.round(result.metrics.distanceMeters))
-})
-
-const distanceMetric = computed(() => {
-  const meters = routeDistanceMeters.value
-  if (!meters) return { value: '--', unit: 'm' }
-  if (meters >= 1000) return { value: (meters / 1000).toFixed(2), unit: 'km' }
-  return { value: `${meters}`, unit: 'm' }
-})
-
-const walkMinutes = computed(() => {
-  if (!Number.isFinite(result.metrics?.durationMinutes)) return '--'
-  return `${Math.max(1, Math.round(result.metrics.durationMinutes))}`
-})
-
-const walkMetric = computed(() => ({
-  value: `${walkMinutes.value}`,
-  unit: 'min'
-}))
-
+const routeDistanceMeters = computed(() => Number.isFinite(result.metrics.distanceMeters) ? result.metrics.distanceMeters : 0)
+const distanceMetric = computed(() => routeDistanceMeters.value >= 1000
+  ? { value: (routeDistanceMeters.value / 1000).toFixed(2), unit: 'km' }
+  : { value: `${Math.round(routeDistanceMeters.value || 0)}`, unit: 'm' })
+const walkMinutes = computed(() => Number.isFinite(result.metrics.durationMinutes) ? `${Math.max(1, Math.round(result.metrics.durationMinutes))}` : '--')
+const walkMetric = computed(() => ({ value: walkMinutes.value, unit: 'min' }))
 const facilityBreakdown = computed(() => {
   const output = { bench: 0, drinking_fountain: 0, toilet: 0 }
   result.facilities.forEach((item) => {
@@ -540,710 +674,531 @@ const facilityBreakdown = computed(() => {
   })
   return output
 })
-
-const slopeSummary = computed(() => {
-  if (!routeDistanceMeters.value) return 'Slope profile unavailable'
-  if (routeDistanceMeters.value <= 1000) return 'Mostly flat and easy'
-  return 'Gentle slopes likely'
+const routeComfortNotes = computed(() => result.comfortNotes.length ? result.comfortNotes : readinessRouteAlerts.value)
+const scoreBreakdownRows = computed(() => [
+  { key: 'distance', label: 'Distance and time', value: result.scoreBreakdown.distance ?? '--' },
+  { key: 'bench', label: 'Bench coverage', value: result.scoreBreakdown.bench ?? '--' },
+  { key: 'toilet', label: 'Toilet coverage', value: result.scoreBreakdown.toilet ?? '--' },
+  { key: 'drinking_fountain', label: 'Water access', value: result.scoreBreakdown.drinking_fountain ?? '--' },
+  { key: 'shade', label: 'Shade', value: result.scoreBreakdown.shade ?? '--' },
+  { key: 'slope', label: 'Slope comfort', value: result.scoreBreakdown.slope ?? '--' }
+])
+const conditionAdvice = computed(() => {
+  if (readiness.condition === 'tired') return 'You may want to walk slowly, use rest stops, and keep the highest-scored route.'
+  if (readiness.condition === 'unwell') return 'Consider postponing this trip or contacting a trusted person before leaving. You can still continue if you decide it is suitable.'
+  return ''
 })
-
-const shadeSummary = computed(() => {
-  if (selectedType.value === 'garden') return 'Shaded for most of the way'
-  if (routeDistanceMeters.value && routeDistanceMeters.value <= 900) return 'Good shade in key sections'
-  return 'Some shaded stretches along the route'
+const readinessRouteAlerts = computed(() => [
+  'This route can include backend comfort markers for benches, toilets, and drinking fountains.',
+  'Consider bringing water and sun protection if this applies to your trip.'
+])
+const readinessResult = computed(() => {
+  if (readiness.condition === 'unwell') return { title: 'Consider postponing', copy: 'If unsure, contact a trusted person before leaving.' }
+  if (readiness.condition === 'tired') return { title: 'Go with caution', copy: 'Take your time and use reminders that apply to you.' }
+  return { title: 'Good to go', copy: 'Your route and basic reminders are ready.' }
 })
-
+const routeInstructions = computed(() => result.instructions.length ? result.instructions : [
+  { text: `Start from ${selectedStart.value?.name || 'your start point'}.`, distanceMeters: 0 },
+  { text: `Follow the highlighted route to ${result.destination?.name || 'your destination'}.`, distanceMeters: result.metrics.distanceMeters },
+  { text: 'Check the route notes before leaving.', distanceMeters: null }
+])
 const canSeeRoute = computed(() => !!result.destination && result.route.length > 1)
 
-const selectedTypeIconUrl = computed(() => {
-  const match = destinationTypes.find(d => d.id === selectedType.value)
-  return match?.icon || parkIcon
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+const formatScore = (score) => Number.isFinite(Number(score)) ? `${Math.round(Number(score))}/100` : 'Score --'
+const scoreTone = (score) => {
+  const value = Number(score)
+  if (value >= 80) return 'score-high'
+  if (value >= 68) return 'score-medium'
+  return 'score-low'
+}
+const formatMinutes = (minutes) => Number.isFinite(Number(minutes)) ? `${Math.max(1, Math.round(Number(minutes)))} min` : '-- min'
+const formatDistance = (meters) => {
+  const value = Number(meters)
+  if (!Number.isFinite(value)) return '-- m'
+  return value >= 1000 ? `${(value / 1000).toFixed(2)} km` : `${Math.round(value)} m`
+}
+const firstComfortNote = (recommendation) => recommendation.comfortNotes?.[0] || 'Comfort score based on distance and route support'
+const scrollTo = (el) => el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+const unlockStep = (id) => {
+  maxReachableStep.value = Math.max(maxReachableStep.value, id)
+}
+const lockAfterStep = (id) => {
+  maxReachableStep.value = Math.min(maxReachableStep.value, id)
+}
+const canNavigateToStep = (id) => id <= maxReachableStep.value
+const showStep = async (id) => {
+  visibleStep.value = id
+  isReadinessOpen.value = false
+  isRouteView.value = false
+  await nextTick()
+  if (id === 1) scrollTo(startSectionEl.value)
+  if (id === 2) scrollTo(destinationSectionEl.value)
+  if (id === 3) {
+    drawMiniMap()
+    scrollTo(resultsSectionEl.value)
+  }
+}
+const invalidateFromStartChange = () => {
+  selectedType.value = ''
+  selectedSpecificDestination.value = null
+  destinationSearchResults.value = []
+  clearPlanOnly()
+  maxReachableStep.value = 2
+}
+const invalidateFromDestinationChange = () => {
+  clearPlanOnly()
+  lockAfterStep(2)
+}
+const samePlace = (left, right) => left?.id === right?.id
+const setSelectedStart = async (place) => {
+  if (!samePlace(selectedStart.value, place)) invalidateFromStartChange()
+  selectedStart.value = place
+  unlockStep(2)
+  visibleStep.value = 2
+  await nextTick()
+  scrollTo(destinationSectionEl.value)
+}
+
+const fakeExternalPlaceSearch = async (query, pool) => {
+  await sleep(450)
+  const term = query.trim().toLowerCase()
+  const matches = pool.filter((place) => `${place.name} ${place.address}`.toLowerCase().includes(term))
+  return matches.length ? matches : pool.slice(0, 3)
+}
+
+const routePlanEndpoint = () => `${API_BASE_URL}/api/route/plan`
+const readJsonResponse = async (response) => {
+  const text = await response.text()
+  if (!text) return {}
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text }
+  }
+}
+const normaliseBackendDestination = (destination) => ({
+  id: destination?.id || `${destination?.type || selectedType.value || 'destination'}-${destination?.lat || 'lat'}-${destination?.lng || 'lng'}`,
+  name: destination?.name || 'Recommended destination',
+  type: destination?.type || selectedType.value,
+  address: destination?.address || destination?.vicinity || destination?.formatted || selectedTypeLabel.value,
+  lat: Number(destination?.lat),
+  lng: Number(destination?.lng)
 })
-
-const scrollTo = (el) => {
-  if (!el) return
-  el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
-const clearResult = () => {
-  recommendations.value = []
-  selectedRecommendationId.value = null
-  result.recommendationId = null
-  result.destination = null
-  result.facilities = []
-  result.route = []
-  result.metrics = {
-    distanceMeters: null,
-    durationMinutes: null
-  }
-  result.score = null
-  result.scoreBreakdown = {}
-  result.comfortNotes = []
-  result.instructions = []
-}
-
-const setStartLocation = (lat, lng, source) => {
-  userLocation.lat = lat
-  userLocation.lng = lng
-  userLocation.source = source
-  errorMessage.value = ''
-  pickerMessage.value = ''
-}
-
-const loadSupportedAreaGeoJson = async () => {
-  if (supportedAreaGeoJson) return supportedAreaGeoJson
-  if (!supportedAreaPromise) {
-    supportedAreaPromise = fetch(SUPPORTED_AREA_GEOJSON_URL)
-      .then((response) => {
-        if (!response.ok) throw new Error(`Could not load supported boundary (${response.status})`)
-        return response.json()
-      })
-      .then((payload) => {
-        supportedAreaGeoJson = payload
-        return payload
-      })
-      .catch((error) => {
-        console.warn(error)
-        supportedAreaPromise = null
-        return null
-      })
-  }
-  return supportedAreaPromise
-}
-
-const getGeometryPolygons = (geometry) => {
-  if (!geometry) return []
-  if (geometry.type === 'Polygon') return [geometry.coordinates]
-  if (geometry.type === 'MultiPolygon') return geometry.coordinates
-  return []
-}
-
-const getBoundaryPolygons = () => {
-  if (!supportedAreaGeoJson?.features) return []
-  return supportedAreaGeoJson.features.flatMap((feature) => getGeometryPolygons(feature.geometry))
-}
-
-const isPointInRing = (latlng, ring) => {
-  if (!Array.isArray(ring) || ring.length < 4) return false
-
-  const x = latlng.lng
-  const y = latlng.lat
-  let inside = false
-
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
-    const [xi, yi] = ring[i]
-    const [xj, yj] = ring[j]
-    const intersects = ((yi > y) !== (yj > y)) &&
-      (x < ((xj - xi) * (y - yi)) / ((yj - yi) || Number.EPSILON) + xi)
-    if (intersects) inside = !inside
-  }
-
-  return inside
-}
-
-const isPointInPolygon = (latlng, polygon) => {
-  const [outerRing, ...holes] = polygon || []
-  if (!isPointInRing(latlng, outerRing)) return false
-  return !holes.some((hole) => isPointInRing(latlng, hole))
-}
-
-const ensureSupportedPoint = (latlng) => {
-  const polygons = getBoundaryPolygons()
-  if (polygons.length) return polygons.some((polygon) => isPointInPolygon(latlng, polygon))
-
-  const bounds = L.latLngBounds(SUPPORTED_AREA_BOUNDS)
-  return bounds.contains(latlng)
-}
-
-const makeInverseMaskLatLngs = () => {
-  const holes = getBoundaryPolygons()
-    .map((polygon) => polygon?.[0])
-    .filter((ring) => Array.isArray(ring) && ring.length)
-    .map((ring) => ring.map(([lng, lat]) => [lat, lng]))
-
-  return [MELBOURNE_MASK_BOUNDS, ...holes]
-}
-
-const addSupportedAreaOverlay = async (targetMap, targetLayer, { interactive = false } = {}) => {
-  await loadSupportedAreaGeoJson()
-  if (!targetMap || !targetLayer || !supportedAreaGeoJson) return null
-
-  const mask = L.polygon(makeInverseMaskLatLngs(), {
-    stroke: false,
-    fillColor: '#f4f7f9',
-    fillOpacity: 0.56,
-    fillRule: 'evenodd',
-    interactive: false
-  }).addTo(targetLayer)
-
-  const boundary = L.geoJSON(supportedAreaGeoJson, {
-    interactive,
-    style: {
-      color: '#5f686e',
-      weight: 2.4,
-      opacity: 0.94,
-      fillColor: '#d7ebdc',
-      fillOpacity: 0.02
-    }
-  }).addTo(targetLayer)
-
-  return boundary.getBounds?.().isValid?.() ? boundary.getBounds() : mask.getBounds()
-}
-
-const updatePickerMarker = (latlng) => {
-  if (!pickerMap || !pickerSelectionLayer) return
-  pickerSelectionLayer.clearLayers()
-  L.circleMarker(latlng, {
-    radius: 10,
-    color: '#124f24',
-    weight: 3,
-    fillColor: '#7fc96a',
-    fillOpacity: 0.95
-  }).addTo(pickerSelectionLayer)
-}
-
-const handlePickerMapClick = (event) => {
-  if (!ensureSupportedPoint(event.latlng)) {
-    pickerMessage.value = 'Please choose a point inside the supported Central Melbourne area.'
-    return
-  }
-
-  pendingMapLocation.value = {
-    lat: event.latlng.lat,
-    lng: event.latlng.lng
-  }
-  pickerMessage.value = 'Point selected. Confirm to continue.'
-  updatePickerMarker(event.latlng)
-}
-
-const ensurePickerMap = async () => {
-  if (pickerMap || !pickerMapEl.value) return
-
-  pickerMap = L.map(pickerMapEl.value, {
-    zoomControl: true,
-    scrollWheelZoom: true,
-    attributionControl: true,
-    minZoom: MAP_MIN_ZOOM,
-    maxBounds: MAP_VIEW_BOUNDS,
-    maxBoundsViscosity: 0.95
-  })
-  addBaseTileLayer(pickerMap)
-
-  pickerBoundsLayer = L.featureGroup().addTo(pickerMap)
-  pickerSelectionLayer = L.layerGroup().addTo(pickerMap)
-
-  const boundaryBounds = await addSupportedAreaOverlay(pickerMap, pickerBoundsLayer, { interactive: true })
-
-  pickerMap.on('click', handlePickerMapClick)
-  pickerMap.fitBounds(boundaryBounds?.isValid?.() ? boundaryBounds : SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
-  pickerMap.setMinZoom(MAP_MIN_ZOOM)
-  pickerMap.setMaxBounds(MAP_VIEW_BOUNDS)
-}
-
-const destroyPickerMap = () => {
-  if (!pickerMap) return
-  pickerMap.off('click', handlePickerMapClick)
-  pickerMap.remove()
-  pickerMap = null
-  pickerSelectionLayer = null
-  pickerBoundsLayer = null
-}
-
-const openMapPicker = async () => {
-  isPickingOnMap.value = true
-  pickerMessage.value = ''
-
-  if (userLocation.source === 'map' && hasStartLocation.value) {
-    pendingMapLocation.value = { lat: userLocation.lat, lng: userLocation.lng }
-  } else {
-    pendingMapLocation.value = null
-  }
-
-  await nextTick()
-  await ensurePickerMap()
-
-  const pickerBounds = pickerBoundsLayer?.getBounds?.()
-  pickerMap?.fitBounds(pickerBounds?.isValid?.() ? pickerBounds : SUPPORTED_AREA_BOUNDS, { padding: [24, 24] })
-  pickerMap?.setMinZoom(MAP_MIN_ZOOM)
-  pickerMap?.setMaxBounds(MAP_VIEW_BOUNDS)
-
-  if (pendingMapLocation.value) {
-    const latlng = L.latLng(pendingMapLocation.value.lat, pendingMapLocation.value.lng)
-    updatePickerMarker(latlng)
-    pickerMap?.panTo(latlng)
-  }
-
-  scrollTo(pickerCardEl.value)
-}
-
-const cancelMapPicker = () => {
-  isPickingOnMap.value = false
-  pendingMapLocation.value = null
-  pickerMessage.value = ''
-}
-
-const confirmMapLocation = async () => {
-  if (!pendingMapLocation.value) return
-  setStartLocation(pendingMapLocation.value.lat, pendingMapLocation.value.lng, 'map')
-  isPickingOnMap.value = false
-
-  if (hasSelectedType.value) {
-    await requestPlan()
-  }
-
-  await nextTick()
-  scrollTo(typeSectionEl.value)
-}
-
-const toFiniteNumber = (value, fallback = null) => {
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
-
-const normalizeRoutePoint = (point) => {
-  if (!Array.isArray(point) || point.length < 2) return null
-  const lng = toFiniteNumber(point[0])
-  const lat = toFiniteNumber(point[1])
-  return lng == null || lat == null ? null : [lng, lat]
-}
-
-const normalizeDestination = (destination) => {
-  if (!destination || typeof destination !== 'object') return null
-  return {
-    ...destination,
-    lat: toFiniteNumber(destination.lat),
-    lng: toFiniteNumber(destination.lng),
-    distanceMeters: toFiniteNumber(destination.distanceMeters)
-  }
-}
-
-const normalizeFacilities = (facilities) => {
-  if (!Array.isArray(facilities)) return []
-  return facilities
-    .filter((facility) => facility && typeof facility === 'object')
-    .map((facility) => ({
-      ...facility,
-      lat: toFiniteNumber(facility.lat),
-      lng: toFiniteNumber(facility.lng),
-      distanceMeters: toFiniteNumber(facility.distanceMeters),
-      conditionRating: toFiniteNumber(facility.conditionRating)
+const normaliseBackendFacilities = (facilities) => Array.isArray(facilities)
+  ? facilities
+    .map((item, index) => ({
+      id: item.id || item.facilityId || `facility-${index}`,
+      type: String(item.type || item.facility_type || item.category || 'facility').trim().toLowerCase(),
+      name: item.name || item.label || item.type || 'Route facility',
+      lat: Number(item.lat ?? item.latitude),
+      lng: Number(item.lng ?? item.longitude),
+      distanceMeters: Number.isFinite(Number(item.distanceMeters)) ? Number(item.distanceMeters) : null,
+      conditionRating: Number.isFinite(Number(item.conditionRating)) ? Number(item.conditionRating) : null,
+      wheelchair: item.wheelchair,
+      lastUpdated: item.lastUpdated
     }))
+    .filter((item) => Number.isFinite(item.lat) && Number.isFinite(item.lng))
+  : []
+const normaliseBackendRoute = (route) => Array.isArray(route)
+  ? route
+    .map((point) => Array.isArray(point) ? [Number(point[0]), Number(point[1])] : [Number(point.lng ?? point.longitude), Number(point.lat ?? point.latitude)])
+    .filter(([lng, lat]) => Number.isFinite(lng) && Number.isFinite(lat))
+  : []
+const buildBackendComfortNotes = (facilities, routeSummary) => {
+  const notes = []
+  const benches = facilities.filter((item) => item.type === 'bench').length
+  const toilets = facilities.filter((item) => item.type === 'toilet').length
+  const fountains = facilities.filter((item) => item.type === 'drinking_fountain').length
+  if (benches) notes.push(`${benches} rest stop${benches === 1 ? '' : 's'} along the route`)
+  if (toilets) notes.push(`${toilets} toilet${toilets === 1 ? '' : 's'} nearby`)
+  if (fountains) notes.push(`${fountains} drinking fountain${fountains === 1 ? '' : 's'} nearby`)
+  if (!notes.length) notes.push('No route-support facilities returned nearby')
+  const distance = Number(routeSummary?.walkingDistanceMeters)
+  if (Number.isFinite(distance)) notes.push(`${formatDistance(distance)} backend walking route`)
+  return notes
 }
-
-const normalizePlanMetrics = (routeSummary) => {
-  const distanceMeters = toFiniteNumber(routeSummary?.walkingDistanceMeters)
-
-  let durationMinutes = toFiniteNumber(routeSummary?.walkingDurationMinutes)
-  if (durationMinutes == null) {
-    const durationSeconds = toFiniteNumber(routeSummary?.walkingDurationSeconds)
-    if (durationSeconds != null) {
-      durationMinutes = Math.max(1, Math.round(durationSeconds / 60))
-    }
-  }
-
+const buildBackendRecommendation = (payload) => {
+  const destination = normaliseBackendDestination(payload.destination)
+  const facilities = normaliseBackendFacilities(payload.facilities)
+  const routeSummary = payload.routeSummary || {}
+  const distanceMeters = Number(routeSummary.walkingDistanceMeters ?? destination.distanceMeters)
+  const durationMinutes = Number(routeSummary.walkingDurationMinutes ?? (Number(routeSummary.walkingDurationSeconds) / 60))
   return {
-    distanceMeters: distanceMeters == null ? null : Math.max(0, Math.round(distanceMeters)),
-    durationMinutes: durationMinutes == null ? null : Math.max(1, Math.round(durationMinutes))
+    id: destination.id,
+    destination,
+    route: normaliseBackendRoute(payload.route),
+    facilities,
+    metrics: {
+      distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : null,
+      durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : null
+    },
+    score: Number.isFinite(Number(payload.score)) ? Number(payload.score) : null,
+    scoreBreakdown: payload.scoreBreakdown || {},
+    comfortNotes: buildBackendComfortNotes(facilities, routeSummary),
+    instructions: []
   }
 }
-
-const normalizeInstructions = (instructions) => {
-  if (!Array.isArray(instructions)) return []
-  return instructions
-    .filter((instruction) => instruction && typeof instruction === 'object')
-    .map((instruction) => ({
-      ...instruction,
-      text: typeof instruction.text === 'string' ? instruction.text : '',
-      distanceMeters: toFiniteNumber(instruction.distanceMeters),
-      nearbyFacilities: normalizeFacilities(instruction.nearbyFacilities)
-    }))
-}
-
-const normalizeRecommendation = (recommendation, index = 0) => {
-  if (!recommendation || typeof recommendation !== 'object') return null
-
-  const normalizedDestination = normalizeDestination(recommendation.destination)
-  const normalizedRoute = Array.isArray(recommendation.route)
-    ? recommendation.route.map(normalizeRoutePoint).filter(Boolean)
-    : []
-  const normalizedMetrics = normalizePlanMetrics(recommendation.routeSummary)
-
-  return {
-    id: recommendation.id || `rec_${index + 1}`,
-    destination: normalizedDestination,
-    route: normalizedRoute,
-    facilities: normalizeFacilities(recommendation.facilities),
-    metrics: normalizedMetrics,
-    score: toFiniteNumber(recommendation.score),
-    scoreBreakdown: recommendation.scoreBreakdown && typeof recommendation.scoreBreakdown === 'object'
-      ? { ...recommendation.scoreBreakdown }
-      : {},
-    comfortNotes: Array.isArray(recommendation.comfortNotes)
-      ? recommendation.comfortNotes.filter((note) => typeof note === 'string')
-      : [],
-    instructions: normalizeInstructions(recommendation.instructions)
-  }
-}
-
-const normalizePlanResponse = (payload) => {
-  const normalizedRecommendations = Array.isArray(payload?.recommendations)
-    ? payload.recommendations
-      .map((recommendation, index) => normalizeRecommendation(recommendation, index))
-      .filter((recommendation) => recommendation?.destination)
-    : []
-
-  if (!normalizedRecommendations.length) {
-    const legacyRecommendation = normalizeRecommendation({
-      id: 'rec_1',
-      destination: payload?.destination,
-      route: payload?.route,
-      facilities: payload?.facilities,
-      routeSummary: payload?.routeSummary,
-      score: payload?.score,
-      scoreBreakdown: payload?.scoreBreakdown,
-      comfortNotes: payload?.comfortNotes,
-      instructions: payload?.instructions
+const fetchBackendPlan = async () => {
+  const requestType = destinationMode.value === 'specific'
+    ? (selectedSpecificDestination.value?.type || selectedType.value)
+    : selectedType.value
+  const response = await fetch(routePlanEndpoint(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: requestType,
+      userLat: selectedStart.value.lat,
+      userLng: selectedStart.value.lng
     })
-
-    if (legacyRecommendation?.destination) normalizedRecommendations.push(legacyRecommendation)
+  })
+  const payload = await readJsonResponse(response)
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || `Route planner request failed (${response.status})`)
   }
-
-  const selectedRecommendation = normalizedRecommendations[0] || null
-
-  return {
-    recommendations: normalizedRecommendations,
-    selectedRecommendation,
-    destination: selectedRecommendation?.destination || null,
-    route: selectedRecommendation?.route || [],
-    facilities: selectedRecommendation?.facilities || [],
-    metrics: selectedRecommendation?.metrics || normalizePlanMetrics(payload?.routeSummary),
-    score: selectedRecommendation?.score ?? null,
-    scoreBreakdown: selectedRecommendation?.scoreBreakdown || {},
-    comfortNotes: selectedRecommendation?.comfortNotes || [],
-    instructions: selectedRecommendation?.instructions || [],
-    message: typeof payload?.message === 'string' ? payload.message : ''
-  }
-}
-
-const buildApiUrl = (path) => `${API_BASE_URL}${path}`
-
-const addBaseTileLayer = (targetMap) => {
-  const options = {
-    attribution: TILE_ATTRIBUTION,
-    maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20,
-    className: 'planner-basemap-tiles'
-  }
-
-  if (TILE_SUBDOMAINS) options.subdomains = TILE_SUBDOMAINS
-
-  return L.tileLayer(TILE_URL_TEMPLATE, options).addTo(targetMap)
-}
-
-const applySelectedRecommendation = (recommendation) => {
-  selectedRecommendationId.value = recommendation?.id || null
-  result.recommendationId = recommendation?.id || null
-  result.destination = recommendation?.destination || null
-  result.facilities = recommendation?.facilities || []
-  result.route = recommendation?.route || []
-  result.metrics = recommendation?.metrics || {
-    distanceMeters: null,
-    durationMinutes: null
-  }
-  result.score = recommendation?.score ?? null
-  result.scoreBreakdown = recommendation?.scoreBreakdown || {}
-  result.comfortNotes = recommendation?.comfortNotes || []
-  result.instructions = recommendation?.instructions || []
-}
-
-const fetchJson = async (url, options = {}, timeoutMs = 20000) => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(url, { ...options, signal: controller.signal })
-    const payload = await response.json().catch(() => ({}))
-    if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`)
-    return payload
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-const requestPlan = async () => {
-  if (!selectedType.value || !hasStartLocation.value) return
-
-  const requestId = ++activeRequestId
-  const requestType = selectedType.value
-  const requestLat = Number.isFinite(Number(userLocation.lat)) ? Number(userLocation.lat) : DEFAULT_LOCATION.lat
-  const requestLng = Number.isFinite(Number(userLocation.lng)) ? Number(userLocation.lng) : DEFAULT_LOCATION.lng
-  const maxAttempts = 1
-
-  hasSearched.value = true
-  isLoadingPlan.value = true
-  errorMessage.value = ''
-  infoMessage.value = ''
-  clearResult()
-
-  try {
-    let payload = null
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      payload = await fetchJson(buildApiUrl('/api/route/plan'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: requestType,
-          userLat: requestLat,
-          userLng: requestLng,
-          destinationMode: 'type',
-          preferences: { ...preferences }
-        })
-      })
-      // retry if destination found but route is empty (e.g. ORS cold-start failure)
-      const normalizedPayload = normalizePlanResponse(payload)
-      payload = normalizedPayload
-      const routeReady = normalizedPayload.destination && normalizedPayload.route.length > 1
-      if (routeReady || !payload?.destination || attempt === maxAttempts) break
-      await new Promise((resolve) => setTimeout(resolve, 800))
-    }
-
-    if (requestId !== activeRequestId) return
-
-    recommendations.value = payload.recommendations || []
-    applySelectedRecommendation(payload.selectedRecommendation)
-    infoMessage.value = payload.message || 'Route recommendation is ready.'
-
-    if (isRouteView.value) drawRouteMap()
-  } catch (error) {
-    if (requestId !== activeRequestId) return
-    clearResult()
-    errorMessage.value = 'The route planning service is currently busy. Please try again shortly.'
-  } finally {
-    if (requestId !== activeRequestId) return
-    isLoadingPlan.value = false
-  }
+  return payload
 }
 
 const useMyLocation = async () => {
-  if (!navigator.geolocation) {
-    errorMessage.value = 'Geolocation is unavailable on this device. Please choose a point on the map instead.'
-    return
-  }
-
+  startMode.value = 'current'
   isLocating.value = true
+  await sleep(500)
+  await setSelectedStart(DEFAULT_LOCATION)
+  startSearchResults.value = []
+  isLocating.value = false
+}
+const runStartSearch = async () => {
+  isSearchingStart.value = true
+  startSearchResults.value = await fakeExternalPlaceSearch(startQuery.value, mockStartPlaces)
+  isSearchingStart.value = false
+}
+const selectStartPlace = async (place) => {
+  await setSelectedStart(place)
+}
+const setDestinationMode = (mode) => {
+  if (destinationMode.value === mode) return
+  destinationMode.value = mode
+  selectedSpecificDestination.value = null
+  destinationSearchResults.value = []
+  selectedType.value = ''
+  invalidateFromDestinationChange()
+}
+const chooseDestinationType = (id) => {
+  if (selectedType.value === id && destinationMode.value === 'category') return
+  selectedType.value = id
+  selectedSpecificDestination.value = null
+  invalidateFromDestinationChange()
+}
+const runDestinationSearch = async () => {
+  isSearchingDestination.value = true
+  destinationSearchResults.value = await fakeExternalPlaceSearch(destinationQuery.value, mockSpecificPlaces)
+  isSearchingDestination.value = false
+}
+const selectSpecificDestination = (place) => {
+  if (samePlace(selectedSpecificDestination.value, place)) return
+  selectedSpecificDestination.value = place
+  selectedType.value = place.type
+  invalidateFromDestinationChange()
+}
+
+const clearPlanOnly = () => {
+  hasSearched.value = false
+  recommendations.value = []
+  highlightedRecommendationId.value = ''
+  planError.value = ''
+  Object.assign(result, {
+    destination: null,
+    facilities: [],
+    route: [],
+    metrics: { distanceMeters: null, durationMinutes: null },
+    score: null,
+    scoreBreakdown: {},
+    comfortNotes: [],
+    instructions: []
+  })
+  destroyMiniMap()
+}
+
+const requestPlan = async () => {
+  if (!canFindRecommendations.value) return
+  clearPlanOnly()
+  unlockStep(3)
+  visibleStep.value = 3
+  isLoadingPlan.value = true
+  hasSearched.value = true
   try {
-    const position = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 300000
-      })
-    })
-    const nextPoint = L.latLng(position.coords.latitude, position.coords.longitude)
-    if (!ensureSupportedPoint(nextPoint)) {
-      errorMessage.value = 'Your current location is outside the supported Central Melbourne area. Please choose a point on the map.'
-      return
+    const payload = await fetchBackendPlan()
+    if (!payload.destination) {
+      planError.value = payload.message || 'No suitable destination was returned.'
+      recommendations.value = []
+    } else {
+      recommendations.value = [buildBackendRecommendation(payload)]
     }
-    setStartLocation(nextPoint.lat, nextPoint.lng, 'live')
-  } catch {
-    errorMessage.value = 'Could not detect your location. Please choose a point on the map.'
+  } catch (error) {
+    planError.value = error instanceof Error ? error.message : 'Route planner request failed.'
+    recommendations.value = []
   } finally {
-    isLocating.value = false
+    isLoadingPlan.value = false
   }
-
-  if (hasSelectedType.value && hasStartLocation.value) requestPlan()
+  await nextTick()
+  drawMiniMap()
+  scrollTo(resultsSectionEl.value)
+}
+const applySelectedRecommendation = (recommendation) => {
+  Object.assign(result, {
+    destination: recommendation?.destination || null,
+    facilities: recommendation?.facilities || [],
+    route: recommendation?.route || [],
+    metrics: recommendation?.metrics || { distanceMeters: null, durationMinutes: null },
+    score: recommendation?.score ?? null,
+    scoreBreakdown: recommendation?.scoreBreakdown || {},
+    comfortNotes: recommendation?.comfortNotes || [],
+    instructions: recommendation?.instructions || []
+  })
+}
+const selectRecommendation = async (recommendation) => {
+  applySelectedRecommendation(recommendation)
+  highlightedRecommendationId.value = recommendation?.id || ''
+  unlockStep(4)
+  destroyMiniMap()
+  await nextTick()
+  drawMiniMap()
+  scrollTo(resultsSectionEl.value)
+}
+const backToRecommendations = async () => {
+  applySelectedRecommendation(null)
+  lockAfterStep(3)
+  visibleStep.value = 3
+  destroyMiniMap()
+  await nextTick()
+  drawMiniMap()
+}
+const highlightRecommendation = async (recommendation) => {
+  highlightedRecommendationId.value = recommendation?.id || ''
+  await nextTick()
+  drawMiniMap()
 }
 
-const clearDestinationChoice = () => {
-  activeRequestId += 1
-  selectedType.value = ''
-  errorMessage.value = ''
-  infoMessage.value = ''
-  hasSearched.value = false
-  isRouteView.value = false
-  clearResult()
-  nextTick(() => scrollTo(typeSectionEl.value))
+const addBaseTileLayer = (targetMap) => {
+  const options = { attribution: TILE_ATTRIBUTION, maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20, className: 'planner-basemap-tiles' }
+  if (TILE_SUBDOMAINS) options.subdomains = TILE_SUBDOMAINS
+  return L.tileLayer(TILE_URL_TEMPLATE, options).addTo(targetMap)
 }
-
-const changeLocation = () => {
-  activeRequestId += 1
-  userLocation.lat = null
-  userLocation.lng = null
-  userLocation.source = 'unset'
-  selectedType.value = ''
-  errorMessage.value = ''
-  infoMessage.value = ''
-  hasSearched.value = false
-  isRouteView.value = false
-  clearResult()
+const makePinIcon = (html, size, anchor) => L.divIcon({ html, className: '', iconSize: size, iconAnchor: anchor })
+const startMarkerHtml = (label = 'You') => (
+  '<div class="rv-pin-start">' +
+  '<svg width="16" height="16" viewBox="0 0 24 24" fill="white">' +
+  '<circle cx="12" cy="4" r="2.5"/>' +
+  '<path d="M10 8.5c-1.1 0-2 .9-2 2v4h2v5h4v-5h2v-4c0-1.1-.9-2-2-2h-4z"/>' +
+  '</svg></div>' +
+  `<div class="rv-pin-label rv-pin-label-start">${label}</div>`
+)
+const destinationMarkerHtml = (label = selectedTypeLabel.value) => (
+  '<div class="rv-pin-dest">' +
+  `<img src="${selectedTypeIconUrl.value}" width="22" height="22" style="filter:invert(1)"/>` +
+  '</div>' +
+  `<div class="rv-pin-label rv-pin-label-dest">${label}</div>`
+)
+const facilityMarkerHtml = (item) => {
+  if (item.type === 'bench') {
+    return `<div class="rv-pin-fac rv-pin-bench"><img src="${benchIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
+  }
+  if (item.type === 'toilet') {
+    return `<div class="rv-pin-fac rv-pin-toilet"><img src="${toiletIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
+  }
+  if (item.type === 'drinking_fountain') {
+    return `<div class="rv-pin-fac rv-pin-fountain"><img src="${fountainIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
+  }
+  return ''
 }
-
-const ensureMap = async () => {
+const addAnimatedRouteLine = (targetLayer, line) => {
+  L.polyline(line, { color: '#1b5e20', weight: 7, opacity: 0.22, lineCap: 'round', lineJoin: 'round' }).addTo(targetLayer)
+  const animatedLine = L.polyline(line, { color: '#2e7d32', weight: 5, opacity: 0.95, dashArray: '18 13', lineCap: 'round', lineJoin: 'round' }).addTo(targetLayer)
+  setTimeout(() => {
+    const el = animatedLine.getElement()
+    if (el) el.classList.add('rv-route-animated')
+  }, 80)
+}
+const drawMarkerSet = (targetLayer, bounds, includeFacilities = false) => {
+  const start = selectedStart.value || DEFAULT_LOCATION
+  L.marker([start.lat, start.lng], { icon: makePinIcon(includeFacilities ? startMarkerHtml() : '<div class="rv-pin-start"></div><div class="rv-pin-label rv-pin-label-start">Start</div>', [44, 54], [22, 48]) }).addTo(targetLayer)
+  bounds.push([start.lat, start.lng])
+  const destinations = hasDestination.value ? [result] : recommendations.value
+  destinations.forEach((item, index) => {
+    const destination = item.destination
+    const isHighlighted = !hasDestination.value && highlightedRecommendationId.value === item.id
+    const pinClass = isHighlighted ? 'rv-pin-dest is-highlighted' : 'rv-pin-dest'
+    const iconSize = isHighlighted ? [68, 74] : [56, 62]
+    const iconAnchor = isHighlighted ? [34, 68] : [28, 56]
+    const destHtml = hasDestination.value
+      ? destinationMarkerHtml(selectedTypeLabel.value)
+      : `<div class="${pinClass}">${index + 1}</div><div class="rv-pin-label rv-pin-label-dest">${destination.name}</div>`
+    L.marker([destination.lat, destination.lng], { icon: makePinIcon(destHtml, iconSize, iconAnchor), zIndexOffset: isHighlighted ? 900 : 0 }).addTo(targetLayer)
+    bounds.push([destination.lat, destination.lng])
+  })
+  if (!includeFacilities) return
+  result.facilities.forEach((item) => {
+    const html = facilityMarkerHtml(item)
+    if (!html) return
+    L.marker([item.lat, item.lng], { icon: makePinIcon(html, [28, 28], [14, 14]) })
+      .bindTooltip(item.name, { direction: 'top', offset: [0, -14] })
+      .addTo(targetLayer)
+    bounds.push([item.lat, item.lng])
+  })
+}
+const ensureMiniMap = () => {
+  if (miniMap || !miniMapEl.value) return
+  miniMap = L.map(miniMapEl.value, { zoomControl: true, scrollWheelZoom: false, attributionControl: true, minZoom: MAP_MIN_ZOOM, maxBounds: MAP_VIEW_BOUNDS, maxBoundsViscosity: 0.95 })
+  addBaseTileLayer(miniMap)
+  miniMapLayer = L.layerGroup().addTo(miniMap)
+}
+const drawMiniMap = () => {
+  if (!recommendations.value.length && !hasDestination.value) return
+  ensureMiniMap()
+  if (!miniMap || !miniMapLayer) return
+  miniMapLayer.clearLayers()
+  const bounds = []
+  if (hasDestination.value && result.route.length > 1) {
+    const line = result.route.map(([lng, lat]) => [lat, lng])
+    addAnimatedRouteLine(miniMapLayer, line)
+    bounds.push(...line)
+  }
+  drawMarkerSet(miniMapLayer, bounds, hasDestination.value)
+  if (bounds.length) miniMap.fitBounds(bounds, { padding: [34, 34] })
+  requestAnimationFrame(() => miniMap?.invalidateSize())
+}
+const destroyMiniMap = () => {
+  miniMap?.remove()
+  miniMap = null
+  miniMapLayer = null
+}
+const ensureMap = () => {
   if (map || !mapEl.value) return
-  map = L.map(mapEl.value, {
-    zoomControl: false,
-    minZoom: MAP_MIN_ZOOM,
-    maxBounds: MAP_VIEW_BOUNDS,
-    maxBoundsViscosity: 0.95
-  }).setView([userLocation.lat, userLocation.lng], 15)
-
+  const start = selectedStart.value || DEFAULT_LOCATION
+  map = L.map(mapEl.value, { zoomControl: false, minZoom: MAP_MIN_ZOOM, maxBounds: MAP_VIEW_BOUNDS, maxBoundsViscosity: 0.95 }).setView([start.lat, start.lng], 15)
   addBaseTileLayer(map)
-
   L.control.zoom({ position: 'bottomright' }).addTo(map)
-
-  supportAreaLayer = L.featureGroup().addTo(map)
-  await addSupportedAreaOverlay(map, supportAreaLayer)
   userLayer = L.layerGroup().addTo(map)
   destinationLayer = L.layerGroup().addTo(map)
   facilitiesLayer = L.layerGroup().addTo(map)
   routeLayer = L.layerGroup().addTo(map)
 }
-
-const makePinIcon = (html, size, anchor) =>
-  L.divIcon({ html, className: '', iconSize: size, iconAnchor: anchor })
-
 const drawRouteMap = () => {
   if (!map) return
-
   userLayer.clearLayers()
   destinationLayer.clearLayers()
   facilitiesLayer.clearLayers()
   routeLayer.clearLayers()
-
   const bounds = []
 
-  // ── Route: solid base + animated dashes + direction arrows ─────────
   if (result.route.length > 1) {
     const line = result.route.map(([lng, lat]) => [lat, lng])
-
-    // Solid semi-transparent base
-    L.polyline(line, {
-      color: '#1b5e20', weight: 7, opacity: 0.22,
-      lineCap: 'round', lineJoin: 'round'
-    }).addTo(routeLayer)
-
-    // Animated dashed overlay
-    const animLine = L.polyline(line, {
-      color: '#2e7d32', weight: 5, opacity: 0.95,
-      dashArray: '18 13', lineCap: 'round', lineJoin: 'round'
-    }).addTo(routeLayer)
-    setTimeout(() => {
-      const el = animLine.getElement()
-      if (el) el.classList.add('rv-route-animated')
-    }, 80)
-
+    addAnimatedRouteLine(routeLayer, line)
     bounds.push(...line)
   }
 
-  // ── Start marker ─────────────────────────────────────
-  const startHtml =
-    `<div class="rv-pin-start">` +
-    `<svg width="16" height="16" viewBox="0 0 24 24" fill="white">` +
-    `<circle cx="12" cy="4" r="2.5"/>` +
-    `<path d="M10 8.5c-1.1 0-2 .9-2 2v4h2v5h4v-5h2v-4c0-1.1-.9-2-2-2h-4z"/>` +
-    `</svg></div>` +
-    `<div class="rv-pin-label rv-pin-label-start">You</div>`
-  L.marker([userLocation.lat, userLocation.lng], {
-    icon: makePinIcon(startHtml, [44, 54], [22, 48])
-  }).addTo(userLayer)
-  bounds.push([userLocation.lat, userLocation.lng])
+  const start = selectedStart.value || DEFAULT_LOCATION
+  L.marker([start.lat, start.lng], { icon: makePinIcon(startMarkerHtml(), [44, 54], [22, 48]) }).addTo(userLayer)
+  bounds.push([start.lat, start.lng])
 
-  // ── Destination marker ─────────────────────────────────
   if (result.destination?.lat != null && result.destination?.lng != null) {
-    const destHtml =
-      `<div class="rv-pin-dest">` +
-      `<img src="${selectedTypeIconUrl.value}" width="22" height="22" style="filter:invert(1)"/>` +
-      `</div>` +
-      `<div class="rv-pin-label rv-pin-label-dest">${selectedTypeLabel.value}</div>`
     L.marker([result.destination.lat, result.destination.lng], {
-      icon: makePinIcon(destHtml, [56, 62], [28, 56])
+      icon: makePinIcon(destinationMarkerHtml(), [56, 62], [28, 56])
     }).addTo(destinationLayer)
     bounds.push([result.destination.lat, result.destination.lng])
   }
 
-  // ── Facility markers ──────────────────────────────────
   result.facilities.forEach((item) => {
     if (item.lat == null || item.lng == null) return
-    let html = ''
-    if (item.type === 'bench') {
-      html =
-        `<div class="rv-pin-fac rv-pin-bench">` +
-        `<img src="${benchIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
-    } else if (item.type === 'toilet') {
-      html =
-        `<div class="rv-pin-fac rv-pin-toilet">` +
-        `<img src="${toiletIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
-    } else if (item.type === 'drinking_fountain') {
-      html =
-        `<div class="rv-pin-fac rv-pin-fountain">` +
-        `<img src="${fountainIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
-    }
-    if (html) {
-      L.marker([item.lat, item.lng], {
-        icon: makePinIcon(html, [28, 28], [14, 14])
-      }).bindTooltip(item.name, { direction: 'top', offset: [0, -14] })
-        .addTo(facilitiesLayer)
-      bounds.push([item.lat, item.lng])
-    }
+    const html = facilityMarkerHtml(item)
+    if (!html) return
+    L.marker([item.lat, item.lng], {
+      icon: makePinIcon(html, [28, 28], [14, 14])
+    }).bindTooltip(item.name, { direction: 'top', offset: [0, -14] }).addTo(facilitiesLayer)
+    bounds.push([item.lat, item.lng])
   })
-
   if (bounds.length) map.fitBounds(bounds, { padding: [48, 48] })
   requestAnimationFrame(() => map?.invalidateSize())
 }
 
-const openRouteView = async () => {
-  if (!canSeeRoute.value) return
+const openReadinessCheck = () => {
+  if (!hasDestination.value) return
+  unlockStep(4)
+  isReadinessOpen.value = true
+}
+const closeReadinessToResults = async () => {
+  isReadinessOpen.value = false
+  visibleStep.value = 3
+  await nextTick()
+  scrollTo(resultsSectionEl.value)
+}
+const confirmReadyToGo = async () => {
+  if (!hasDestination.value) return
+  isReadinessOpen.value = false
+  unlockStep(5)
   isRouteView.value = true
   window.scrollTo(0, 0)
-  document.documentElement.scrollTop = 0
-  document.body.scrollTop = 0
   await nextTick()
-  await ensureMap()
+  ensureMap()
   drawRouteMap()
-  // double-rAF: wait for browser layout to complete before fixing size
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    window.scrollTo(0, 0)
-    map?.invalidateSize()
-  }))
 }
-
-watch(selectedType, async () => {
-  if (!selectedType.value) {
-    activeRequestId += 1
-    clearResult()
-    errorMessage.value = ''
-    infoMessage.value = ''
-    hasSearched.value = false
+const exportItinerary = () => {
+  const text = [
+    'GreenPath Itinerary',
+    `Start: ${selectedStart.value?.name || 'Not selected'}`,
+    `Destination: ${result.destination?.name || 'Not selected'}`,
+    `Route score: ${formatScore(result.score)}`,
+    `Distance: ${formatDistance(result.metrics.distanceMeters)}`,
+    `Walking time: ${formatMinutes(result.metrics.durationMinutes)}`,
+    '',
+    'Route steps:',
+    ...routeInstructions.value.map((step, index) => `${index + 1}. ${step.text} ${formatDistance(step.distanceMeters)}`)
+  ].join('\n')
+  const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = 'greenpath-itinerary.txt'
+  link.click()
+  URL.revokeObjectURL(url)
+}
+const jumpToStep = async (id) => {
+  if (!canNavigateToStep(id)) return
+  if (id <= 3) {
+    await showStep(id)
     return
   }
-  if (!hasStartLocation.value) return
-  requestPlan()
+  if (id === 4) {
+    isRouteView.value = false
+    openReadinessCheck()
+    return
+  }
+  if (id === 5) {
+    await confirmReadyToGo()
+  }
+}
+
+watch(hasDestination, async () => {
   await nextTick()
-  scrollTo(resultAnchorEl.value)
+  drawMiniMap()
 })
-
-watch(isPickingOnMap, (visible) => {
-  if (visible) return
-  destroyPickerMap()
-})
-
 watch(
   () => isRouteView.value,
   (visible) => {
     if (!visible) {
-      // DOM element will be destroyed by v-else — must destroy map too
       map?.remove()
       map = null
       userLayer = null
       destinationLayer = null
       facilitiesLayer = null
       routeLayer = null
-      supportAreaLayer = null
     }
   }
 )
-
 onBeforeUnmount(() => {
   map?.remove()
-  map = null
-  destroyPickerMap()
+  destinationLayer = null
+  destroyMiniMap()
 })
 </script>
+
