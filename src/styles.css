@@ -3420,6 +3420,12 @@ h4 {
   font-weight: 750;
 }
 
+.planner-selection-note-error {
+  background: #f8e7df;
+  color: #8a351f;
+  border: 1px solid #efc5b6;
+}
+
 .planner-segmented {
   width: max-content;
   max-width: 100%;

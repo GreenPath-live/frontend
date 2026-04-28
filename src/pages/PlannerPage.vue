@@ -66,7 +66,7 @@
               {{ isSearchingStart ? 'Searching...' : 'Search' }}
             </button>
           </div>
-          <p>Search helps choose a start coordinate before sending the planning request to the backend.</p>
+
         </form>
 
         <div v-if="startSearchResults.length" class="planner-search-results" aria-label="Start search results">
@@ -84,6 +84,9 @@
 
         <p v-if="selectedStart" class="planner-selection-note">
           Start selected: <strong>{{ selectedStart.name }}</strong>
+        </p>
+        <p v-if="startValidationMessage" class="planner-selection-note planner-selection-note-error">
+          {{ startValidationMessage }}
         </p>
       </article>
 
@@ -160,6 +163,9 @@
 
         <p v-if="destinationReadyLabel" class="planner-selection-note">
           Destination choice: <strong>{{ destinationReadyLabel }}</strong>
+        </p>
+        <p v-if="destinationValidationMessage" class="planner-selection-note planner-selection-note-error">
+          {{ destinationValidationMessage }}
         </p>
 
         <div class="planner-flow-action">
@@ -329,14 +335,14 @@
       </section>
     </section>
 
-    <div v-if="isReadinessOpen" class="planner-readiness-backdrop" role="presentation" @click.self="isReadinessOpen = false">
+    <div v-if="isReadinessOpen" class="planner-readiness-backdrop" role="presentation" @click.self="closeReadinessToResults">
       <section class="planner-readiness-modal" role="dialog" aria-modal="true" aria-labelledby="readiness-title">
         <div class="planner-readiness-head">
           <div>
             <p>Pre-trip Check</p>
             <h2 id="readiness-title">Are you ready to go?</h2>
           </div>
-          <button type="button" class="planner-map-picker-close" @click="isReadinessOpen = false">Close</button>
+          <button type="button" class="planner-map-picker-close" @click="closeReadinessToResults">Close</button>
         </div>
 
         <button class="planner-step-back-btn" type="button" @click="closeReadinessToResults">
@@ -543,6 +549,8 @@ import fountainIcon from '../assets/svg/drinking-fountain-icon.svg'
 const DEFAULT_LOCATION = { id: 'current', name: 'Carlton North, VIC', address: 'Detected current location', lat: -37.7848, lng: 144.9721 }
 const MAP_VIEW_BOUNDS = [[-37.895, 144.875], [-37.735, 145.055]]
 const MAP_MIN_ZOOM = 12
+const MUNICIPAL_BOUNDARY_URL = '/data/municipal-boundary.geojson'
+const SUPPORTED_AREA_ERROR = 'This location is outside the supported Central Melbourne area.'
 const TILE_URL_TEMPLATE = import.meta.env.VITE_TILE_URL_TEMPLATE || 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 const TILE_ATTRIBUTION = import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; OpenStreetMap contributors &copy; CARTO'
 const TILE_SUBDOMAINS = import.meta.env.VITE_TILE_SUBDOMAINS || 'abcd'
@@ -619,6 +627,8 @@ const isReadinessOpen = ref(false)
 const isRouteView = ref(false)
 const hasSearched = ref(false)
 const planError = ref('')
+const startValidationMessage = ref('')
+const destinationValidationMessage = ref('')
 const visibleStep = ref(1)
 const maxReachableStep = ref(1)
 
@@ -647,6 +657,7 @@ let userLayer = null
 let destinationLayer = null
 let facilitiesLayer = null
 let routeLayer = null
+let boundaryGeoJsonPromise = null
 
 const hasDestination = computed(() => !!result.destination)
 const selectedTypeLabel = computed(() => destinationTypes.find((d) => d.id === selectedType.value)?.label || selectedSpecificDestination.value?.type || 'Destination')
@@ -751,7 +762,63 @@ const invalidateFromDestinationChange = () => {
   lockAfterStep(2)
 }
 const samePlace = (left, right) => left?.id === right?.id
+const pointInMapBounds = (place) => {
+  const lat = Number(place?.lat)
+  const lng = Number(place?.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
+  const [[south, west], [north, east]] = MAP_VIEW_BOUNDS
+  return lat >= south && lat <= north && lng >= west && lng <= east
+}
+const pointInRing = ([lng, lat], ring) => {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i]
+    const [xj, yj] = ring[j]
+    const intersects = ((yi > lat) !== (yj > lat)) && (lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi)
+    if (intersects) inside = !inside
+  }
+  return inside
+}
+const pointInPolygon = (point, rings) => {
+  if (!rings?.length || !pointInRing(point, rings[0])) return false
+  return !rings.slice(1).some((ring) => pointInRing(point, ring))
+}
+const geometryContainsPoint = (geometry, point) => {
+  if (!geometry) return false
+  if (geometry.type === 'Polygon') return pointInPolygon(point, geometry.coordinates)
+  if (geometry.type === 'MultiPolygon') return geometry.coordinates.some((polygon) => pointInPolygon(point, polygon))
+  if (geometry.type === 'GeometryCollection') return geometry.geometries?.some((item) => geometryContainsPoint(item, point)) || false
+  return false
+}
+const geoJsonContainsPlace = (geoJson, place) => {
+  const lat = Number(place?.lat)
+  const lng = Number(place?.lng)
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
+  const point = [lng, lat]
+  if (geoJson?.type === 'FeatureCollection') {
+    return geoJson.features?.some((feature) => geometryContainsPoint(feature.geometry, point)) || false
+  }
+  if (geoJson?.type === 'Feature') return geometryContainsPoint(geoJson.geometry, point)
+  return geometryContainsPoint(geoJson, point)
+}
+const isPlaceInSupportedArea = async (place) => {
+  if (!pointInMapBounds(place)) return false
+  const boundary = await loadBoundaryGeoJson()
+  return boundary ? geoJsonContainsPlace(boundary, place) : true
+}
 const setSelectedStart = async (place) => {
+  startValidationMessage.value = ''
+  const isSupported = await isPlaceInSupportedArea(place)
+  if (!isSupported) {
+    startValidationMessage.value = SUPPORTED_AREA_ERROR
+    selectedStart.value = null
+    selectedType.value = ''
+    selectedSpecificDestination.value = null
+    destinationSearchResults.value = []
+    clearPlanOnly()
+    maxReachableStep.value = 1
+    return
+  }
   if (!samePlace(selectedStart.value, place)) invalidateFromStartChange()
   selectedStart.value = place
   unlockStep(2)
@@ -878,6 +945,7 @@ const selectStartPlace = async (place) => {
 const setDestinationMode = (mode) => {
   if (destinationMode.value === mode) return
   destinationMode.value = mode
+  destinationValidationMessage.value = ''
   selectedSpecificDestination.value = null
   destinationSearchResults.value = []
   selectedType.value = ''
@@ -885,6 +953,7 @@ const setDestinationMode = (mode) => {
 }
 const chooseDestinationType = (id) => {
   if (selectedType.value === id && destinationMode.value === 'category') return
+  destinationValidationMessage.value = ''
   selectedType.value = id
   selectedSpecificDestination.value = null
   invalidateFromDestinationChange()
@@ -894,8 +963,17 @@ const runDestinationSearch = async () => {
   destinationSearchResults.value = await fakeExternalPlaceSearch(destinationQuery.value, mockSpecificPlaces)
   isSearchingDestination.value = false
 }
-const selectSpecificDestination = (place) => {
+const selectSpecificDestination = async (place) => {
   if (samePlace(selectedSpecificDestination.value, place)) return
+  destinationValidationMessage.value = ''
+  const isSupported = await isPlaceInSupportedArea(place)
+  if (!isSupported) {
+    destinationValidationMessage.value = SUPPORTED_AREA_ERROR
+    selectedSpecificDestination.value = null
+    selectedType.value = ''
+    invalidateFromDestinationChange()
+    return
+  }
   selectedSpecificDestination.value = place
   selectedType.value = place.type
   invalidateFromDestinationChange()
@@ -921,6 +999,19 @@ const clearPlanOnly = () => {
 
 const requestPlan = async () => {
   if (!canFindRecommendations.value) return
+  startValidationMessage.value = ''
+  destinationValidationMessage.value = ''
+  if (!await isPlaceInSupportedArea(selectedStart.value)) {
+    startValidationMessage.value = SUPPORTED_AREA_ERROR
+    visibleStep.value = 1
+    lockAfterStep(1)
+    return
+  }
+  if (destinationMode.value === 'specific' && !await isPlaceInSupportedArea(selectedSpecificDestination.value)) {
+    destinationValidationMessage.value = SUPPORTED_AREA_ERROR
+    lockAfterStep(2)
+    return
+  }
   clearPlanOnly()
   unlockStep(3)
   visibleStep.value = 3
@@ -928,8 +1019,12 @@ const requestPlan = async () => {
   hasSearched.value = true
   try {
     const payload = await fetchBackendPlan()
+    const backendDestination = normaliseBackendDestination(payload.destination)
     if (!payload.destination) {
       planError.value = payload.message || 'No suitable destination was returned.'
+      recommendations.value = []
+    } else if (!await isPlaceInSupportedArea(backendDestination)) {
+      planError.value = 'The recommended destination is outside the supported Central Melbourne area. Please choose another destination.'
       recommendations.value = []
     } else {
       recommendations.value = [buildBackendRecommendation(payload)]
@@ -980,9 +1075,53 @@ const highlightRecommendation = async (recommendation) => {
 }
 
 const addBaseTileLayer = (targetMap) => {
-  const options = { attribution: TILE_ATTRIBUTION, maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20, className: 'planner-basemap-tiles' }
+  const options = {
+    attribution: TILE_ATTRIBUTION,
+    minZoom: MAP_MIN_ZOOM,
+    maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20,
+    bounds: MAP_VIEW_BOUNDS,
+    className: 'planner-basemap-tiles',
+    keepBuffer: 2,
+    updateWhenIdle: true,
+    updateWhenZooming: false
+  }
   if (TILE_SUBDOMAINS) options.subdomains = TILE_SUBDOMAINS
   return L.tileLayer(TILE_URL_TEMPLATE, options).addTo(targetMap)
+}
+const loadBoundaryGeoJson = async () => {
+  if (!boundaryGeoJsonPromise) {
+    boundaryGeoJsonPromise = fetch(MUNICIPAL_BOUNDARY_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Boundary GeoJSON failed (${response.status})`)
+        return response.json()
+      })
+      .catch(() => null)
+  }
+  return boundaryGeoJsonPromise
+}
+const ensureMapPane = (targetMap, name, zIndex) => {
+  if (targetMap.getPane(name)) return
+  targetMap.createPane(name)
+  targetMap.getPane(name).style.zIndex = String(zIndex)
+}
+const addBoundaryLayer = async (targetMap) => {
+  if (!targetMap || targetMap.getPane('planner-boundary-pane')) return
+  ensureMapPane(targetMap, 'planner-boundary-pane', 390)
+  const boundary = await loadBoundaryGeoJson()
+  if (!boundary || !targetMap) return
+  L.geoJSON(boundary, {
+    pane: 'planner-boundary-pane',
+    interactive: false,
+    style: {
+      color: '#155d25',
+      weight: 5,
+      opacity: 0.95,
+      fillColor: '#74b86f',
+      fillOpacity: 0.07,
+      dashArray: '12 8',
+      lineJoin: 'round'
+    }
+  }).addTo(targetMap)
 }
 const makePinIcon = (html, size, anchor) => L.divIcon({ html, className: '', iconSize: size, iconAnchor: anchor })
 const startMarkerHtml = (label = 'You') => (
@@ -1050,6 +1189,7 @@ const ensureMiniMap = () => {
   if (miniMap || !miniMapEl.value) return
   miniMap = L.map(miniMapEl.value, { zoomControl: true, scrollWheelZoom: false, attributionControl: true, minZoom: MAP_MIN_ZOOM, maxBounds: MAP_VIEW_BOUNDS, maxBoundsViscosity: 0.95 })
   addBaseTileLayer(miniMap)
+  addBoundaryLayer(miniMap)
   miniMapLayer = L.layerGroup().addTo(miniMap)
 }
 const drawMiniMap = () => {
@@ -1077,6 +1217,7 @@ const ensureMap = () => {
   const start = selectedStart.value || DEFAULT_LOCATION
   map = L.map(mapEl.value, { zoomControl: false, minZoom: MAP_MIN_ZOOM, maxBounds: MAP_VIEW_BOUNDS, maxBoundsViscosity: 0.95 }).setView([start.lat, start.lng], 15)
   addBaseTileLayer(map)
+  addBoundaryLayer(map)
   L.control.zoom({ position: 'bottomright' }).addTo(map)
   userLayer = L.layerGroup().addTo(map)
   destinationLayer = L.layerGroup().addTo(map)
@@ -1130,6 +1271,11 @@ const closeReadinessToResults = async () => {
   isReadinessOpen.value = false
   visibleStep.value = 3
   await nextTick()
+  drawMiniMap()
+  requestAnimationFrame(() => {
+    miniMap?.invalidateSize()
+    drawMiniMap()
+  })
   scrollTo(resultsSectionEl.value)
 }
 const confirmReadyToGo = async () => {
@@ -1183,6 +1329,17 @@ watch(hasDestination, async () => {
   drawMiniMap()
 })
 watch(
+  () => isReadinessOpen.value,
+  async (open) => {
+    if (open || isRouteView.value || !hasDestination.value) return
+    await nextTick()
+    requestAnimationFrame(() => {
+      miniMap?.invalidateSize()
+      drawMiniMap()
+    })
+  }
+)
+watch(
   () => isRouteView.value,
   (visible) => {
     if (!visible) {
@@ -1201,4 +1358,3 @@ onBeforeUnmount(() => {
   destroyMiniMap()
 })
 </script>
-
