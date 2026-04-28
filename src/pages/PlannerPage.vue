@@ -530,8 +530,9 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
-import L from 'leaflet'
-import 'leaflet/dist/leaflet.css'
+import maplibregl from 'maplibre-gl'
+import 'maplibre-gl/dist/maplibre-gl.css'
+import { Protocol } from 'pmtiles'
 import pharmacyIcon from '../assets/svg/pharmacy.svg'
 import groceryIcon from '../assets/svg/grocery.svg'
 import clinicIcon from '../assets/svg/clinic.svg'
@@ -549,13 +550,18 @@ import fountainIcon from '../assets/svg/drinking-fountain-icon.svg'
 const DEFAULT_LOCATION = { id: 'current', name: 'Carlton North, VIC', address: 'Detected current location', lat: -37.7848, lng: 144.9721 }
 const MAP_VIEW_BOUNDS = [[-37.895, 144.875], [-37.735, 145.055]]
 const MAP_MIN_ZOOM = 12
+const MAP_MAX_ZOOM = Number(import.meta.env.VITE_MAP_MAX_ZOOM || 18)
+const PMTILES_MAX_DATA_ZOOM = Number(import.meta.env.VITE_PMTILES_MAX_DATA_ZOOM || 14)
 const MUNICIPAL_BOUNDARY_URL = '/data/municipal-boundary.geojson'
 const SUPPORTED_AREA_ERROR = 'This location is outside the supported Central Melbourne area.'
-const TILE_URL_TEMPLATE = import.meta.env.VITE_TILE_URL_TEMPLATE || 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
-const TILE_ATTRIBUTION = import.meta.env.VITE_TILE_ATTRIBUTION || '&copy; OpenStreetMap contributors &copy; CARTO'
-const TILE_SUBDOMAINS = import.meta.env.VITE_TILE_SUBDOMAINS || 'abcd'
-const TILE_MAX_ZOOM = Number(import.meta.env.VITE_TILE_MAX_ZOOM || 20)
+const MAP_STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || '/styles/positron/style.json'
+const PMTILES_URL = import.meta.env.VITE_PMTILES_URL || 'https://pub-64269a193cf745e5b366a287e94c5196.r2.dev/maps/melbourne.pmtiles'
+const MAP_GLYPHS_URL = import.meta.env.VITE_MAP_GLYPHS_URL || '/fonts/{fontstack}/{range}.pbf'
+const MAP_SPRITE_URL = import.meta.env.VITE_MAP_SPRITE_URL || '/styles/positron/sprite'
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+
+const pmtilesProtocol = new Protocol()
+maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile)
 
 const plannerSteps = [
   { id: 1, label: 'Start' },
@@ -651,13 +657,13 @@ const miniMapEl = ref(null)
 const mapEl = ref(null)
 
 let miniMap = null
-let miniMapLayer = null
 let map = null
-let userLayer = null
-let destinationLayer = null
-let facilitiesLayer = null
-let routeLayer = null
 let boundaryGeoJsonPromise = null
+let mapStylePromise = null
+let routeDashFrame = null
+let routeDashOffset = 0
+const miniMapMarkers = []
+const routeMapMarkers = []
 
 const hasDestination = computed(() => !!result.destination)
 const selectedTypeLabel = computed(() => destinationTypes.find((d) => d.id === selectedType.value)?.label || selectedSpecificDestination.value?.type || 'Destination')
@@ -994,6 +1000,7 @@ const clearPlanOnly = () => {
     comfortNotes: [],
     instructions: []
   })
+  stopRouteDashAnimation()
   destroyMiniMap()
 }
 
@@ -1074,20 +1081,6 @@ const highlightRecommendation = async (recommendation) => {
   drawMiniMap()
 }
 
-const addBaseTileLayer = (targetMap) => {
-  const options = {
-    attribution: TILE_ATTRIBUTION,
-    minZoom: MAP_MIN_ZOOM,
-    maxZoom: Number.isFinite(TILE_MAX_ZOOM) ? TILE_MAX_ZOOM : 20,
-    bounds: MAP_VIEW_BOUNDS,
-    className: 'planner-basemap-tiles',
-    keepBuffer: 2,
-    updateWhenIdle: true,
-    updateWhenZooming: false
-  }
-  if (TILE_SUBDOMAINS) options.subdomains = TILE_SUBDOMAINS
-  return L.tileLayer(TILE_URL_TEMPLATE, options).addTo(targetMap)
-}
 const loadBoundaryGeoJson = async () => {
   if (!boundaryGeoJsonPromise) {
     boundaryGeoJsonPromise = fetch(MUNICIPAL_BOUNDARY_URL)
@@ -1099,31 +1092,6 @@ const loadBoundaryGeoJson = async () => {
   }
   return boundaryGeoJsonPromise
 }
-const ensureMapPane = (targetMap, name, zIndex) => {
-  if (targetMap.getPane(name)) return
-  targetMap.createPane(name)
-  targetMap.getPane(name).style.zIndex = String(zIndex)
-}
-const addBoundaryLayer = async (targetMap) => {
-  if (!targetMap || targetMap.getPane('planner-boundary-pane')) return
-  ensureMapPane(targetMap, 'planner-boundary-pane', 390)
-  const boundary = await loadBoundaryGeoJson()
-  if (!boundary || !targetMap) return
-  L.geoJSON(boundary, {
-    pane: 'planner-boundary-pane',
-    interactive: false,
-    style: {
-      color: '#155d25',
-      weight: 5,
-      opacity: 0.95,
-      fillColor: '#74b86f',
-      fillOpacity: 0.07,
-      dashArray: '12 8',
-      lineJoin: 'round'
-    }
-  }).addTo(targetMap)
-}
-const makePinIcon = (html, size, anchor) => L.divIcon({ html, className: '', iconSize: size, iconAnchor: anchor })
 const startMarkerHtml = (label = 'You') => (
   '<div class="rv-pin-start">' +
   '<svg width="16" height="16" viewBox="0 0 24 24" fill="white">' +
@@ -1140,126 +1108,526 @@ const destinationMarkerHtml = (label = selectedTypeLabel.value) => (
 )
 const facilityMarkerHtml = (item) => {
   if (item.type === 'bench') {
-    return `<div class="rv-pin-fac rv-pin-bench"><img src="${benchIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
+    return `<div class="rv-pin-fac rv-pin-fac-compact rv-pin-bench"><img src="${benchIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
   }
   if (item.type === 'toilet') {
-    return `<div class="rv-pin-fac rv-pin-toilet"><img src="${toiletIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
+    return `<div class="rv-pin-fac rv-pin-fac-compact rv-pin-toilet"><img src="${toiletIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
   }
   if (item.type === 'drinking_fountain') {
-    return `<div class="rv-pin-fac rv-pin-fountain"><img src="${fountainIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
+    return `<div class="rv-pin-fac rv-pin-fac-compact rv-pin-fountain"><img src="${fountainIcon}" width="14" height="14" style="filter:invert(1)"/></div>`
   }
   return ''
 }
-const addAnimatedRouteLine = (targetLayer, line) => {
-  L.polyline(line, { color: '#1b5e20', weight: 7, opacity: 0.22, lineCap: 'round', lineJoin: 'round' }).addTo(targetLayer)
-  const animatedLine = L.polyline(line, { color: '#2e7d32', weight: 5, opacity: 0.95, dashArray: '18 13', lineCap: 'round', lineJoin: 'round' }).addTo(targetLayer)
-  setTimeout(() => {
-    const el = animatedLine.getElement()
-    if (el) el.classList.add('rv-route-animated')
-  }, 80)
+
+const loadMapStyle = async () => {
+  if (!mapStylePromise) {
+    mapStylePromise = fetch(MAP_STYLE_URL)
+      .then((response) => {
+        if (!response.ok) throw new Error(`Map style failed (${response.status})`)
+        return response.json()
+      })
+      .then((style) => ({
+        ...style,
+        glyphs: MAP_GLYPHS_URL,
+        sprite: MAP_SPRITE_URL,
+        sources: {
+          ...style.sources,
+          openmaptiles: {
+            type: 'vector',
+            url: `pmtiles://${PMTILES_URL}`,
+            minzoom: 0,
+            maxzoom: PMTILES_MAX_DATA_ZOOM,
+            bounds: [144.266, -38.552, 145.81, -37.365]
+          }
+        }
+      }))
+  }
+  return mapStylePromise
 }
-const drawMarkerSet = (targetLayer, bounds, includeFacilities = false) => {
+const mapMaxBounds = () => [[MAP_VIEW_BOUNDS[0][1], MAP_VIEW_BOUNDS[0][0]], [MAP_VIEW_BOUNDS[1][1], MAP_VIEW_BOUNDS[1][0]]]
+const emptyFeatureCollection = () => ({ type: 'FeatureCollection', features: [] })
+const routeFeatureCollection = (lngLatLine) => ({
+  type: 'FeatureCollection',
+  features: lngLatLine.length > 1
+    ? [{
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: lngLatLine }
+      }]
+    : []
+})
+const toRadians = (degrees) => degrees * Math.PI / 180
+const distanceBetweenLngLat = ([lng1, lat1], [lng2, lat2]) => {
+  const radius = 6371000
+  const dLat = toRadians(lat2 - lat1)
+  const dLng = toRadians(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) * Math.sin(dLng / 2) ** 2
+  return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+const normaliseRouteDirection = (line) => {
   const start = selectedStart.value || DEFAULT_LOCATION
-  L.marker([start.lat, start.lng], { icon: makePinIcon(includeFacilities ? startMarkerHtml() : '<div class="rv-pin-start"></div><div class="rv-pin-label rv-pin-label-start">Start</div>', [44, 54], [22, 48]) }).addTo(targetLayer)
-  bounds.push([start.lat, start.lng])
+  if (line.length < 2 || start?.lng == null || start?.lat == null) return line
+  const startPoint = [start.lng, start.lat]
+  const distanceToFirst = distanceBetweenLngLat(startPoint, line[0])
+  const distanceToLast = distanceBetweenLngLat(startPoint, line[line.length - 1])
+  return distanceToLast < distanceToFirst ? [...line].reverse() : line
+}
+const routeConnectorFeatureCollection = () => {
+  const features = []
+  if (result.route.length > 1) {
+    const start = selectedStart.value || DEFAULT_LOCATION
+    const directedRoute = normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
+    const routeStart = directedRoute[0]
+    const routeEnd = directedRoute[directedRoute.length - 1]
+    if (Number.isFinite(start.lng) && Number.isFinite(start.lat)) {
+      features.push({
+        type: 'Feature',
+        properties: { role: 'start' },
+        geometry: { type: 'LineString', coordinates: [[start.lng, start.lat], routeStart] }
+      })
+    }
+    if (result.destination?.lng != null && result.destination?.lat != null) {
+      features.push({
+        type: 'Feature',
+        properties: { role: 'destination' },
+        geometry: { type: 'LineString', coordinates: [routeEnd, [result.destination.lng, result.destination.lat]] }
+      })
+    }
+  }
+  return { type: 'FeatureCollection', features }
+}
+const interpolateLngLat = ([lng1, lat1], [lng2, lat2], ratio) => [
+  lng1 + (lng2 - lng1) * ratio,
+  lat1 + (lat2 - lat1) * ratio
+]
+const routeLengthMeters = (line) => line.slice(1).reduce((total, point, index) => total + distanceBetweenLngLat(line[index], point), 0)
+const routeSegmentBetween = (line, startMeters, endMeters) => {
+  const segment = []
+  let walked = 0
+  for (let index = 1; index < line.length; index += 1) {
+    const from = line[index - 1]
+    const to = line[index]
+    const distance = distanceBetweenLngLat(from, to)
+    const segmentStart = walked
+    const segmentEnd = walked + distance
+
+    if (segmentEnd >= startMeters && segmentStart <= endMeters && distance > 0) {
+      const localStart = Math.max(startMeters, segmentStart)
+      const localEnd = Math.min(endMeters, segmentEnd)
+      const startPoint = interpolateLngLat(from, to, (localStart - segmentStart) / distance)
+      const endPoint = interpolateLngLat(from, to, (localEnd - segmentStart) / distance)
+      if (!segment.length) segment.push(startPoint)
+      segment.push(endPoint)
+    }
+    walked = segmentEnd
+    if (walked > endMeters) break
+  }
+  return segment.length > 1 ? segment : null
+}
+const routeDashFeatureCollection = (line, offsetMeters = 0) => {
+  const dashMeters = 18
+  const gapMeters = 13
+  const cycleMeters = dashMeters + gapMeters
+  const totalMeters = routeLengthMeters(line)
+  if (line.length < 2 || totalMeters <= 0) return emptyFeatureCollection()
+
+  const features = []
+  for (let cursor = offsetMeters - cycleMeters; cursor < totalMeters; cursor += cycleMeters) {
+    const start = Math.max(0, cursor)
+    const end = Math.min(totalMeters, cursor + dashMeters)
+    if (end <= 0 || end <= start) continue
+    const segment = routeSegmentBetween(line, start, end)
+    if (segment) {
+      features.push({
+        type: 'Feature',
+        properties: {},
+        geometry: { type: 'LineString', coordinates: segment }
+      })
+    }
+  }
+  return { type: 'FeatureCollection', features }
+}
+const ensureGeoJsonSource = (targetMap, sourceId) => {
+  if (!targetMap.getSource(sourceId)) {
+    targetMap.addSource(sourceId, { type: 'geojson', data: emptyFeatureCollection() })
+  }
+  return targetMap.getSource(sourceId)
+}
+const ensureRouteLayers = (targetMap, sourceId) => {
+  ensureGeoJsonSource(targetMap, sourceId)
+  ensureGeoJsonSource(targetMap, `${sourceId}-flow`)
+  ensureGeoJsonSource(targetMap, `${sourceId}-connectors`)
+  if (!targetMap.getLayer(`${sourceId}-halo`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-halo`,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': '#1b5e20',
+        'line-width': 7,
+        'line-opacity': 0.22
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    })
+  }
+  if (!targetMap.getLayer(`${sourceId}-line`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-line`,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': '#2e7d32',
+        'line-width': 5,
+        'line-opacity': 0.16
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    })
+  }
+  if (!targetMap.getLayer(`${sourceId}-flow-line`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-flow-line`,
+      type: 'line',
+      source: `${sourceId}-flow`,
+      paint: {
+        'line-color': '#2e7d32',
+        'line-width': 5,
+        'line-opacity': 0.96
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    })
+  }
+  if (!targetMap.getLayer(`${sourceId}-connectors-line`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-connectors-line`,
+      type: 'line',
+      source: `${sourceId}-connectors`,
+      paint: {
+        'line-color': '#2e7d32',
+        'line-width': 3,
+        'line-opacity': 0.72,
+        'line-dasharray': [1.2, 1.6]
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    })
+  }
+}
+const startRouteDashAnimation = () => {
+  if (routeDashFrame) return
+  const tick = () => {
+    const line = result.route.length > 1 ? normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat])) : []
+    const flowData = routeDashFeatureCollection(line, routeDashOffset)
+    if (miniMap?.getSource('planner-mini-route-flow')) {
+      miniMap.getSource('planner-mini-route-flow').setData(flowData)
+    }
+    if (map?.getSource('planner-route-flow')) {
+      map.getSource('planner-route-flow').setData(flowData)
+    }
+    routeDashOffset = (routeDashOffset + 3.2) % 31
+    routeDashFrame = window.setTimeout(tick, 70)
+  }
+  tick()
+}
+const stopRouteDashAnimation = () => {
+  if (!routeDashFrame) return
+  window.clearTimeout(routeDashFrame)
+  routeDashFrame = null
+}
+const moveBoundaryLayersToTop = (targetMap) => {
+  ;['planner-boundary-fill', 'planner-boundary-halo', 'planner-boundary-line'].forEach((layerId) => {
+    if (targetMap.getLayer(layerId)) targetMap.moveLayer(layerId)
+  })
+}
+const addBoundaryLayer = async (targetMap) => {
+  if (!targetMap) return
+  if (!targetMap.isStyleLoaded()) {
+    targetMap.once('idle', () => addBoundaryLayer(targetMap))
+    return
+  }
+  const boundary = await loadBoundaryGeoJson()
+  if (!boundary || !targetMap?.isStyleLoaded()) return
+  if (!targetMap.getSource('planner-boundary')) {
+    targetMap.addSource('planner-boundary', { type: 'geojson', data: boundary })
+  }
+  if (!targetMap.getLayer('planner-boundary-fill')) {
+    targetMap.addLayer({
+      id: 'planner-boundary-fill',
+      type: 'fill',
+      source: 'planner-boundary',
+      paint: {
+        'fill-color': '#74b86f',
+        'fill-opacity': 0.07
+      }
+    })
+  }
+  if (!targetMap.getLayer('planner-boundary-halo')) {
+    targetMap.addLayer({
+      id: 'planner-boundary-halo',
+      type: 'line',
+      source: 'planner-boundary',
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 9,
+        'line-opacity': 0.9
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    })
+  }
+  if (!targetMap.getLayer('planner-boundary-line')) {
+    targetMap.addLayer({
+      id: 'planner-boundary-line',
+      type: 'line',
+      source: 'planner-boundary',
+      paint: {
+        'line-color': '#155d25',
+        'line-width': 5,
+        'line-opacity': 0.98
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    })
+  }
+  moveBoundaryLayersToTop(targetMap)
+}
+const createPlannerMap = async (container, options = {}) => {
+  const style = await loadMapStyle()
+  const targetMap = new maplibregl.Map({
+    container,
+    style,
+    center: [DEFAULT_LOCATION.lng, DEFAULT_LOCATION.lat],
+    zoom: options.zoom || 13,
+    minZoom: MAP_MIN_ZOOM,
+    maxZoom: MAP_MAX_ZOOM,
+    maxBounds: mapMaxBounds(),
+    attributionControl: true,
+    scrollZoom: options.scrollZoom ?? false,
+    dragRotate: false,
+    pitchWithRotate: false
+  })
+  targetMap.touchZoomRotate.disableRotation()
+  targetMap.on('load', () => {
+    addBoundaryLayer(targetMap)
+    options.onLoad?.()
+  })
+  return targetMap
+}
+const clearMarkers = (markers) => {
+  markers.splice(0).forEach((marker) => marker.remove())
+}
+const addHtmlMarker = (targetMap, markers, lngLat, html, options = {}) => {
+  const el = document.createElement('div')
+  el.className = 'planner-maplibre-marker'
+  el.innerHTML = html
+  const marker = new maplibregl.Marker({
+    element: el,
+    anchor: options.anchor || 'bottom',
+    offset: options.offset || [0, 0]
+  })
+    .setLngLat(lngLat)
+    .addTo(targetMap)
+  if (options.title) marker.getElement().title = options.title
+  markers.push(marker)
+}
+const facilityFeatureCollection = () => ({
+  type: 'FeatureCollection',
+  features: result.facilities
+    .filter((item) => item.lat != null && item.lng != null)
+    .map((item) => ({
+      type: 'Feature',
+      properties: {
+        type: item.type,
+        name: item.name || item.type
+      },
+      geometry: {
+        type: 'Point',
+        coordinates: [item.lng, item.lat]
+      }
+    }))
+})
+const ensureFacilityLayers = (targetMap, sourceId) => {
+  ensureGeoJsonSource(targetMap, sourceId)
+  if (!targetMap.getLayer(`${sourceId}-shadow`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-shadow`,
+      type: 'circle',
+      source: sourceId,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 6, 18, 9],
+        'circle-color': 'rgba(16, 33, 22, 0.22)',
+        'circle-blur': 0.65,
+        'circle-translate': [1, 2]
+      }
+    })
+  }
+  if (!targetMap.getLayer(`${sourceId}-circle`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-circle`,
+      type: 'circle',
+      source: sourceId,
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 12, 7, 18, 11],
+        'circle-color': [
+          'match',
+          ['get', 'type'],
+          'bench', '#7cb342',
+          'toilet', '#2196f3',
+          'drinking_fountain', '#00bcd4',
+          '#7cb342'
+        ],
+        'circle-stroke-color': [
+          'match',
+          ['get', 'type'],
+          'bench', '#558b2f',
+          'toilet', '#1565c0',
+          'drinking_fountain', '#0097a7',
+          '#558b2f'
+        ],
+        'circle-stroke-width': 2,
+        'circle-opacity': 0.95
+      }
+    })
+  }
+  if (!targetMap.getLayer(`${sourceId}-icon`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-icon`,
+      type: 'symbol',
+      source: sourceId,
+      layout: {
+        'text-field': [
+          'match',
+          ['get', 'type'],
+          'bench', 'B',
+          'toilet', 'T',
+          'drinking_fountain', 'W',
+          'F'
+        ],
+        'text-size': ['interpolate', ['linear'], ['zoom'], 12, 9, 18, 12],
+        'text-font': ['Noto Sans Bold'],
+        'text-allow-overlap': true,
+        'text-ignore-placement': true
+      },
+      paint: {
+        'text-color': '#ffffff',
+        'text-halo-color': 'rgba(0, 0, 0, 0.16)',
+        'text-halo-width': 0.6
+      }
+    })
+  }
+}
+const drawFacilityLayer = (targetMap, sourceId) => {
+  if (!targetMap?.isStyleLoaded()) return
+  ensureFacilityLayers(targetMap, sourceId)
+  targetMap.getSource(sourceId)?.setData(facilityFeatureCollection())
+}
+const moveRouteLayersToTop = (targetMap, sourceId) => {
+  ;[`${sourceId}-connectors-line`, `${sourceId}-halo`, `${sourceId}-line`, `${sourceId}-flow-line`].forEach((layerId) => {
+    if (targetMap.getLayer(layerId)) targetMap.moveLayer(layerId)
+  })
+}
+const moveFacilityLayersToTop = (targetMap, sourceId) => {
+  ;[`${sourceId}-shadow`, `${sourceId}-circle`, `${sourceId}-icon`].forEach((layerId) => {
+    if (targetMap.getLayer(layerId)) targetMap.moveLayer(layerId)
+  })
+}
+const fitMapToPoints = (targetMap, lngLatPoints, padding) => {
+  if (!targetMap || !lngLatPoints.length) return
+  const bounds = lngLatPoints.reduce(
+    (mapBounds, point) => mapBounds.extend(point),
+    new maplibregl.LngLatBounds(lngLatPoints[0], lngLatPoints[0])
+  )
+  targetMap.fitBounds(bounds, { padding, maxZoom: MAP_MAX_ZOOM, duration: 0 })
+}
+const drawRouteLine = (targetMap, sourceId, lngLatLine) => {
+  if (!targetMap?.isStyleLoaded()) return
+  ensureRouteLayers(targetMap, sourceId)
+  targetMap.getSource(sourceId)?.setData(routeFeatureCollection(lngLatLine))
+  targetMap.getSource(`${sourceId}-flow`)?.setData(routeDashFeatureCollection(lngLatLine, routeDashOffset))
+  targetMap.getSource(`${sourceId}-connectors`)?.setData(routeConnectorFeatureCollection())
+  moveBoundaryLayersToTop(targetMap)
+  moveRouteLayersToTop(targetMap, sourceId)
+  if (lngLatLine.length > 1) {
+    startRouteDashAnimation()
+  } else {
+    targetMap.getSource(`${sourceId}-flow`)?.setData(emptyFeatureCollection())
+  }
+}
+const drawMarkerSet = (targetMap, markers, lngLatBounds, includeFacilities = false) => {
+  if (!targetMap) return
+  clearMarkers(markers)
+  const start = selectedStart.value || DEFAULT_LOCATION
+  addHtmlMarker(
+    targetMap,
+    markers,
+    [start.lng, start.lat],
+    includeFacilities ? startMarkerHtml() : '<div class="rv-pin-start"></div><div class="rv-pin-label rv-pin-label-start">Start</div>'
+  )
+  lngLatBounds.push([start.lng, start.lat])
+
   const destinations = hasDestination.value ? [result] : recommendations.value
   destinations.forEach((item, index) => {
     const destination = item.destination
     const isHighlighted = !hasDestination.value && highlightedRecommendationId.value === item.id
     const pinClass = isHighlighted ? 'rv-pin-dest is-highlighted' : 'rv-pin-dest'
-    const iconSize = isHighlighted ? [68, 74] : [56, 62]
-    const iconAnchor = isHighlighted ? [34, 68] : [28, 56]
     const destHtml = hasDestination.value
       ? destinationMarkerHtml(selectedTypeLabel.value)
       : `<div class="${pinClass}">${index + 1}</div><div class="rv-pin-label rv-pin-label-dest">${destination.name}</div>`
-    L.marker([destination.lat, destination.lng], { icon: makePinIcon(destHtml, iconSize, iconAnchor), zIndexOffset: isHighlighted ? 900 : 0 }).addTo(targetLayer)
-    bounds.push([destination.lat, destination.lng])
+    addHtmlMarker(targetMap, markers, [destination.lng, destination.lat], destHtml)
+    lngLatBounds.push([destination.lng, destination.lat])
   })
+
   if (!includeFacilities) return
-  result.facilities.forEach((item) => {
-    const html = facilityMarkerHtml(item)
-    if (!html) return
-    L.marker([item.lat, item.lng], { icon: makePinIcon(html, [28, 28], [14, 14]) })
-      .bindTooltip(item.name, { direction: 'top', offset: [0, -14] })
-      .addTo(targetLayer)
-    bounds.push([item.lat, item.lng])
-  })
-}
-const ensureMiniMap = () => {
-  if (miniMap || !miniMapEl.value) return
-  miniMap = L.map(miniMapEl.value, { zoomControl: true, scrollWheelZoom: false, attributionControl: true, minZoom: MAP_MIN_ZOOM, maxBounds: MAP_VIEW_BOUNDS, maxBoundsViscosity: 0.95 })
-  addBaseTileLayer(miniMap)
-  addBoundaryLayer(miniMap)
-  miniMapLayer = L.layerGroup().addTo(miniMap)
-}
-const drawMiniMap = () => {
-  if (!recommendations.value.length && !hasDestination.value) return
-  ensureMiniMap()
-  if (!miniMap || !miniMapLayer) return
-  miniMapLayer.clearLayers()
-  const bounds = []
-  if (hasDestination.value && result.route.length > 1) {
-    const line = result.route.map(([lng, lat]) => [lat, lng])
-    addAnimatedRouteLine(miniMapLayer, line)
-    bounds.push(...line)
-  }
-  drawMarkerSet(miniMapLayer, bounds, hasDestination.value)
-  if (bounds.length) miniMap.fitBounds(bounds, { padding: [34, 34] })
-  requestAnimationFrame(() => miniMap?.invalidateSize())
-}
-const destroyMiniMap = () => {
-  miniMap?.remove()
-  miniMap = null
-  miniMapLayer = null
-}
-const ensureMap = () => {
-  if (map || !mapEl.value) return
-  const start = selectedStart.value || DEFAULT_LOCATION
-  map = L.map(mapEl.value, { zoomControl: false, minZoom: MAP_MIN_ZOOM, maxBounds: MAP_VIEW_BOUNDS, maxBoundsViscosity: 0.95 }).setView([start.lat, start.lng], 15)
-  addBaseTileLayer(map)
-  addBoundaryLayer(map)
-  L.control.zoom({ position: 'bottomright' }).addTo(map)
-  userLayer = L.layerGroup().addTo(map)
-  destinationLayer = L.layerGroup().addTo(map)
-  facilitiesLayer = L.layerGroup().addTo(map)
-  routeLayer = L.layerGroup().addTo(map)
-}
-const drawRouteMap = () => {
-  if (!map) return
-  userLayer.clearLayers()
-  destinationLayer.clearLayers()
-  facilitiesLayer.clearLayers()
-  routeLayer.clearLayers()
-  const bounds = []
-
-  if (result.route.length > 1) {
-    const line = result.route.map(([lng, lat]) => [lat, lng])
-    addAnimatedRouteLine(routeLayer, line)
-    bounds.push(...line)
-  }
-
-  const start = selectedStart.value || DEFAULT_LOCATION
-  L.marker([start.lat, start.lng], { icon: makePinIcon(startMarkerHtml(), [44, 54], [22, 48]) }).addTo(userLayer)
-  bounds.push([start.lat, start.lng])
-
-  if (result.destination?.lat != null && result.destination?.lng != null) {
-    L.marker([result.destination.lat, result.destination.lng], {
-      icon: makePinIcon(destinationMarkerHtml(), [56, 62], [28, 56])
-    }).addTo(destinationLayer)
-    bounds.push([result.destination.lat, result.destination.lng])
-  }
-
+  const facilitySourceId = targetMap === miniMap ? 'planner-mini-facilities' : 'planner-facilities'
+  drawFacilityLayer(targetMap, facilitySourceId)
+  moveBoundaryLayersToTop(targetMap)
+  moveFacilityLayersToTop(targetMap, facilitySourceId)
   result.facilities.forEach((item) => {
     if (item.lat == null || item.lng == null) return
     const html = facilityMarkerHtml(item)
-    if (!html) return
-    L.marker([item.lat, item.lng], {
-      icon: makePinIcon(html, [28, 28], [14, 14])
-    }).bindTooltip(item.name, { direction: 'top', offset: [0, -14] }).addTo(facilitiesLayer)
-    bounds.push([item.lat, item.lng])
+    if (html) addHtmlMarker(targetMap, markers, [item.lng, item.lat], html, { anchor: 'center', title: item.name })
+    lngLatBounds.push([item.lng, item.lat])
   })
-  if (bounds.length) map.fitBounds(bounds, { padding: [48, 48] })
-  requestAnimationFrame(() => map?.invalidateSize())
+}
+const ensureMiniMap = async () => {
+  if (miniMap || !miniMapEl.value) return
+  miniMap = await createPlannerMap(miniMapEl.value, { zoom: 13, onLoad: drawMiniMap })
+  miniMap.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+}
+const drawMiniMap = async () => {
+  if (!recommendations.value.length && !hasDestination.value) return
+  await ensureMiniMap()
+  if (!miniMap?.isStyleLoaded()) return
+  const lngLatBounds = []
+  const line = hasDestination.value && result.route.length > 1
+    ? normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
+    : []
+  drawRouteLine(miniMap, 'planner-mini-route', line)
+  drawMarkerSet(miniMap, miniMapMarkers, lngLatBounds, hasDestination.value)
+  if (line.length) lngLatBounds.push(...line)
+  fitMapToPoints(miniMap, lngLatBounds, 34)
+  requestAnimationFrame(() => miniMap?.resize())
+}
+const destroyMiniMap = () => {
+  clearMarkers(miniMapMarkers)
+  miniMap?.remove()
+  miniMap = null
+}
+const ensureMap = async () => {
+  if (map || !mapEl.value) return
+  const start = selectedStart.value || DEFAULT_LOCATION
+  map = await createPlannerMap(mapEl.value, { zoom: 14, scrollZoom: true, onLoad: drawRouteMap })
+  map.setCenter([start.lng, start.lat])
+  map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
+}
+const drawRouteMap = async () => {
+  await ensureMap()
+  if (!map?.isStyleLoaded()) return
+  const lngLatBounds = []
+  const line = result.route.length > 1
+    ? normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
+    : []
+  drawRouteLine(map, 'planner-route', line)
+  if (line.length) lngLatBounds.push(...line)
+  drawMarkerSet(map, routeMapMarkers, lngLatBounds, true)
+  fitMapToPoints(map, lngLatBounds, 48)
+  requestAnimationFrame(() => map?.resize())
 }
 
 const openReadinessCheck = () => {
@@ -1273,7 +1641,7 @@ const closeReadinessToResults = async () => {
   await nextTick()
   drawMiniMap()
   requestAnimationFrame(() => {
-    miniMap?.invalidateSize()
+    miniMap?.resize()
     drawMiniMap()
   })
   scrollTo(resultsSectionEl.value)
@@ -1285,8 +1653,8 @@ const confirmReadyToGo = async () => {
   isRouteView.value = true
   window.scrollTo(0, 0)
   await nextTick()
-  ensureMap()
-  drawRouteMap()
+  await ensureMap()
+  await drawRouteMap()
 }
 const exportItinerary = () => {
   const text = [
@@ -1334,7 +1702,7 @@ watch(
     if (open || isRouteView.value || !hasDestination.value) return
     await nextTick()
     requestAnimationFrame(() => {
-      miniMap?.invalidateSize()
+      miniMap?.resize()
       drawMiniMap()
     })
   }
@@ -1343,18 +1711,17 @@ watch(
   () => isRouteView.value,
   (visible) => {
     if (!visible) {
+      clearMarkers(routeMapMarkers)
       map?.remove()
       map = null
-      userLayer = null
-      destinationLayer = null
-      facilitiesLayer = null
-      routeLayer = null
     }
   }
 )
 onBeforeUnmount(() => {
+  stopRouteDashAnimation()
+  clearMarkers(routeMapMarkers)
   map?.remove()
-  destinationLayer = null
   destroyMiniMap()
+  maplibregl.removeProtocol('pmtiles')
 })
 </script>
