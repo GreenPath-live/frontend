@@ -317,7 +317,7 @@
 
             <div class="planner-summary-actions">
               <button class="btn btn-primary planner-see-route-btn" @click="openReadinessCheck" :disabled="!canSeeRoute">
-                Review Route
+                Pre-trip checklist
               </button>
               <button class="btn planner-change-btn" @click="backToRecommendations">
                 Change
