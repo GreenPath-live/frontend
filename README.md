@@ -7,7 +7,7 @@ GreenPath is a Vue 3 + Vite frontend focused on helping older adults plan walkin
 - Vue 3
 - Vite 5
 - Vue Router 4
-- Leaflet
+- MapLibre GL
 - Plain CSS
 
 ## Main Pages
@@ -41,18 +41,22 @@ The Vite dev server is configured to run on:
 http://localhost:5173
 ```
 
-### Backend API base URL
+### Backend API URLs
 
-The planner uses this backend API by default:
+The planner calls the deployed route, place search, and canopy query services by default:
 
 ```text
-https://g5m02vygkj.execute-api.ap-southeast-2.amazonaws.com
+VITE_ROUTE_SERVICE_URL=https://krdihvgnt5.execute-api.ap-southeast-2.amazonaws.com/default/new-route-service
+VITE_PLACE_SEARCH_URL=https://t0413oh804.execute-api.ap-southeast-2.amazonaws.com/default/place-search-service
+VITE_CANOPY_QUERY_URL=https://ev1dboadg5.execute-api.ap-southeast-2.amazonaws.com/default/canopy-query-service
 ```
 
-If you need to point the frontend to another backend, create a `.env.local` file in the `frontend` folder:
+If you need to point the frontend to another backend, create a `.env.local` file in the `frontend` folder and override any of those values:
 
 ```bash
-VITE_API_BASE_URL=https://your-backend-base-url
+VITE_ROUTE_SERVICE_URL=https://your-route-service-url
+VITE_PLACE_SEARCH_URL=https://your-place-search-service-url
+VITE_CANOPY_QUERY_URL=https://your-canopy-query-service-url
 ```
 
 ### Build for production
@@ -122,8 +126,8 @@ Recommended Vercel setup:
 ## Planner Notes
 
 - The planner page uses MapLibre GL for the map view.
-- Some planner content is currently driven by frontend data and UI state.
-- Tree canopy and some route-support data are presented as part of the interface design and may later be supplied by backend services.
+- Place search, route options, facilities, facility summaries, and tree canopy polygons are supplied by backend APIs.
+- Mini map previews intentionally show locations only. The final route map shows the walking route, support facilities, and canopy shade layer.
 
 ## Static Vector Basemap
 

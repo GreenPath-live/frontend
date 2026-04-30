@@ -114,7 +114,7 @@
         </div>
 
         <div v-if="destinationMode === 'category'" class="planner-category-panel">
-          <p class="planner-panel-instruction">Select one destination type. The current backend returns one recommended option.</p>
+          <p class="planner-panel-instruction">Select one destination type. GreenPath will request nearby route options from the backend.</p>
           <div class="planner-type-grid planner-type-grid-clean">
             <button
               v-for="item in destinationTypes"
@@ -194,7 +194,7 @@
             <div class="planner-section-headline">
               <p>Results</p>
               <h3>Compare nearby options</h3>
-              <span>Backend currently returns one recommended option. Select it to preview details.</span>
+              <span>Select an option to preview its details.</span>
             </div>
             <article
               v-for="(item, index) in recommendations"
@@ -327,7 +327,7 @@
           <div class="planner-mini-map-panel">
             <div class="planner-mini-map-head">
               <strong>Route preview</strong>
-              <span>Backend route and nearby comfort markers</span>
+              <span>Start and destination locations only</span>
             </div>
             <div ref="miniMapEl" class="planner-mini-map"></div>
           </div>
@@ -350,42 +350,51 @@
           Back to route details
         </button>
 
-        <div class="planner-readiness-block">
-          <h3>How are you feeling today?</h3>
-          <div class="planner-condition-grid">
-            <button
-              v-for="item in conditionOptions"
-              :key="item.id"
-              type="button"
-              :class="{ active: readiness.condition === item.id }"
-              @click="readiness.condition = item.id"
-            >
-              <strong>{{ item.label }}</strong>
-              <small>{{ item.help }}</small>
-            </button>
+        <div class="planner-readiness-block planner-weather-card">
+          <div class="planner-readiness-title-row">
+            <h3>Weather before you leave</h3>
+            <span v-if="weather.isLoading">Checking weather...</span>
           </div>
-          <p v-if="conditionAdvice" class="planner-readiness-advice" :class="readiness.condition">
-            {{ conditionAdvice }}
+          <p class="planner-readiness-advice" :class="{ unwell: weatherAdvice.tone === 'caution' }">
+            {{ weatherAdvice.message }}
           </p>
-        </div>
-
-        <div class="planner-readiness-block">
-          <h3>Medication and support items</h3>
-          <label v-for="item in medicationItems" :key="item.id" class="planner-check-row">
-            <input v-model="readiness.medication" type="checkbox" :value="item.label" />
-            <span>{{ item.label }}</span>
-          </label>
-        </div>
-
-        <div class="planner-readiness-block">
-          <h3>Route-specific reminders</h3>
           <ul class="planner-comfort-notes">
-            <li v-for="note in readinessRouteAlerts" :key="note">{{ note }}</li>
+            <li v-for="note in weatherAdvice.items" :key="note">{{ note }}</li>
           </ul>
         </div>
 
         <div class="planner-readiness-block">
-          <h3>Essentials and comfort items</h3>
+          <h3>{{ selectedTypeLabel }} reminders</h3>
+          <p class="planner-check-intro">{{ destinationChecklistIntro }}</p>
+          <label v-for="item in destinationChecklistItems" :key="item.id" class="planner-check-row">
+            <input v-model="readiness.tripItems" type="checkbox" :value="item.label" />
+            <span>{{ item.label }}</span>
+          </label>
+        </div>
+
+        <div v-if="destinationKind === 'grocery'" class="planner-readiness-block">
+          <h3>Shopping list</h3>
+          <p class="planner-check-intro">Add a few things you want to buy. Your list will stay visible on the route map.</p>
+          <form class="planner-shopping-form" @submit.prevent="addShoppingItem">
+            <input
+              v-model.trim="shoppingInput"
+              type="text"
+              placeholder="Example: milk, bread, bananas"
+              aria-label="Shopping item"
+            />
+            <button type="submit" aria-label="Add shopping item">+</button>
+          </form>
+          <ul v-if="shoppingItems.length" class="planner-shopping-list">
+            <li v-for="item in shoppingItems" :key="item.id">
+              <span>{{ item.text }}</span>
+              <button type="button" :aria-label="`Remove ${item.text}`" @click="removeShoppingItem(item.id)">Remove</button>
+            </li>
+          </ul>
+        </div>
+
+        <div class="planner-readiness-block">
+          <h3>Everyday items</h3>
+          <p class="planner-check-intro">A quick check can help you avoid turning back after you leave.</p>
           <label v-for="item in essentialItems" :key="item.id" class="planner-check-row">
             <input v-model="readiness.essentials" type="checkbox" :value="item.label" />
             <span>{{ item.label }}</span>
@@ -508,6 +517,10 @@
               <span class="rv-ldot rv-ldot-route"></span>
               Walking route
             </div>
+            <div class="rv-legend-row">
+              <span class="rv-ldot rv-ldot-shade"></span>
+              Tree canopy shade
+            </div>
           </div>
         </div>
 
@@ -522,6 +535,12 @@
           <span class="planner-spinner" aria-hidden="true"></span>
           <p>Loading route map...</p>
         </div>
+        <aside v-if="showMapShoppingList" class="planner-map-shopping-card" aria-label="Shopping list">
+          <strong>Shopping list</strong>
+          <ul>
+            <li v-for="item in shoppingItems" :key="item.id">{{ item.text }}</li>
+          </ul>
+        </aside>
         <div ref="mapEl" class="planner-route-map"></div>
       </section>
     </section>
@@ -547,7 +566,7 @@ import benchIcon from '../assets/svg/bench-icon.svg'
 import toiletIcon from '../assets/svg/toilet-icon.svg'
 import fountainIcon from '../assets/svg/drinking-fountain-icon.svg'
 
-const DEFAULT_LOCATION = { id: 'current', name: 'Carlton North, VIC', address: 'Detected current location', lat: -37.7848, lng: 144.9721 }
+const DEFAULT_MAP_CENTER = { lat: -37.8136, lng: 144.9631 }
 const MAP_VIEW_BOUNDS = [[-37.895, 144.875], [-37.735, 145.055]]
 const MAP_MIN_ZOOM = 12
 const MAP_MAX_ZOOM = Number(import.meta.env.VITE_MAP_MAX_ZOOM || 18)
@@ -558,7 +577,10 @@ const MAP_STYLE_URL = import.meta.env.VITE_MAP_STYLE_URL || '/styles/positron/st
 const PMTILES_URL = import.meta.env.VITE_PMTILES_URL || 'https://pub-64269a193cf745e5b366a287e94c5196.r2.dev/maps/melbourne.pmtiles'
 const MAP_GLYPHS_URL = import.meta.env.VITE_MAP_GLYPHS_URL || '/fonts/{fontstack}/{range}.pbf'
 const MAP_SPRITE_URL = import.meta.env.VITE_MAP_SPRITE_URL || '/styles/positron/sprite'
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
+const ROUTE_SERVICE_URL = import.meta.env.VITE_ROUTE_SERVICE_URL || 'https://krdihvgnt5.execute-api.ap-southeast-2.amazonaws.com/default/new-route-service'
+const PLACE_SEARCH_URL = import.meta.env.VITE_PLACE_SEARCH_URL || 'https://t0413oh804.execute-api.ap-southeast-2.amazonaws.com/default/place-search-service'
+const CANOPY_QUERY_URL = import.meta.env.VITE_CANOPY_QUERY_URL || 'https://ev1dboadg5.execute-api.ap-southeast-2.amazonaws.com/default/canopy-query-service'
+const DEBUG_PLANNER = import.meta.env.DEV || import.meta.env.VITE_DEBUG_PLANNER === 'true'
 
 const pmtilesProtocol = new Protocol()
 maplibregl.addProtocol('pmtiles', pmtilesProtocol.tile)
@@ -576,43 +598,76 @@ const destinationTypes = [
   { id: 'clinic', label: 'Clinic', icon: clinicIcon },
   { id: 'grocery', label: 'Grocery', icon: groceryIcon },
   { id: 'cafe', label: 'Cafe', icon: cafeIcon },
-  { id: 'garden', label: 'Park', icon: parkIcon }
-]
-
-const conditionOptions = [
-  { id: 'good', label: 'I feel good', help: 'Continue normally.' },
-  { id: 'tired', label: 'A little tired', help: 'Walk slowly and use rest stops.' },
-  { id: 'unwell', label: 'Not feeling well', help: 'Consider contacting someone before leaving.' }
-]
-
-const medicationItems = [
-  { id: 'daily', label: 'Daily medication' },
-  { id: 'emergency', label: 'Emergency medication' },
-  { id: 'support', label: 'Usual health support item, if this applies to you' },
-  { id: 'id', label: 'Medical ID or emergency contact card' }
+  { id: 'park', label: 'Park', icon: parkIcon }
 ]
 
 const essentialItems = [
+  { id: 'keys', label: 'Keys' },
+  { id: 'phone', label: 'Charged mobile phone' },
+  { id: 'wallet', label: 'Wallet, bank card, or transport card' },
   { id: 'water', label: 'Water bottle' },
-  { id: 'phone', label: 'Charged phone' },
-  { id: 'keys', label: 'Keys, wallet, or transport card' },
-  { id: 'shoes', label: 'Comfortable shoes or walking aid' },
-  { id: 'weather', label: 'Hat, sunscreen, umbrella, or jacket' },
-  { id: 'share', label: 'Share route with family or carer' }
+  { id: 'glasses', label: 'Glasses, hearing aids, or walking aid if you use them' },
+  { id: 'shoes', label: 'Comfortable shoes' },
+  { id: 'home', label: 'Door locked and stove or appliances turned off' },
+  { id: 'share', label: 'Tell someone where you are going if that helps you feel safer' }
 ]
 
-const mockStartPlaces = [
-  DEFAULT_LOCATION,
-  { id: 'state-library', name: 'State Library Victoria', address: '328 Swanston St, Melbourne VIC', lat: -37.8099, lng: 144.9651 },
-  { id: 'fed-square', name: 'Federation Square', address: 'Swanston St & Flinders St, Melbourne VIC', lat: -37.8179, lng: 144.9691 },
-  { id: 'queen-victoria-market', name: 'Queen Victoria Market', address: 'Queen St, Melbourne VIC', lat: -37.8076, lng: 144.9568 }
-]
-
-const mockSpecificPlaces = [
-  { id: 'cw-central', name: 'Chemist Warehouse Melbourne Central', address: '211 La Trobe St, Melbourne VIC', type: 'pharmacy', lat: -37.8106, lng: 144.9631 },
-  { id: 'city-medical', name: 'City Medical Centre', address: '68 Lonsdale St, Melbourne VIC', type: 'clinic', lat: -37.8103, lng: 144.9701 },
-  { id: 'woolworths-qv', name: 'Woolworths QV', address: 'Cnr Swanston St and Lonsdale St, Melbourne VIC', type: 'grocery', lat: -37.8101, lng: 144.9654 }
-]
+const destinationChecklistByType = {
+  grocery: {
+    intro: 'A small list can make shopping easier and reduce the chance of forgetting something.',
+    items: [
+      { id: 'bag', label: 'Reusable shopping bag or trolley' },
+      { id: 'payment', label: 'Payment card or cash' },
+      { id: 'loyalty', label: 'Store card, discount card, or coupons if you use them' },
+      { id: 'weight', label: 'Plan to buy only what feels comfortable to carry home' }
+    ]
+  },
+  pharmacy: {
+    intro: 'Before visiting the pharmacy, check the items that help staff support you quickly.',
+    items: [
+      { id: 'prescription', label: 'Prescription, refill notice, or medicine box' },
+      { id: 'medicine-list', label: 'List of medicines you currently take' },
+      { id: 'medicare', label: 'Medicare card, concession card, or pharmacy card' },
+      { id: 'questions', label: 'Questions you want to ask the pharmacist' }
+    ]
+  },
+  clinic: {
+    intro: 'For a clinic visit, bring the information your doctor or nurse may need.',
+    items: [
+      { id: 'appointment', label: 'Appointment time and clinic details' },
+      { id: 'medicare', label: 'Medicare card and any health insurance card' },
+      { id: 'referral', label: 'Referral letter, test results, or previous reports if you have them' },
+      { id: 'medicines', label: 'Current medicine list and allergy information' },
+      { id: 'notes', label: 'Notes about symptoms or questions you want to discuss' }
+    ]
+  },
+  cafe: {
+    intro: 'For a cafe stop, check a few small things before you go.',
+    items: [
+      { id: 'payment', label: 'Payment card or cash' },
+      { id: 'booking', label: 'Booking details if you made a reservation' },
+      { id: 'glasses', label: 'Reading glasses if you need them for the menu' },
+      { id: 'diet', label: 'Any diet or allergy notes you may want to mention' }
+    ]
+  },
+  park: {
+    intro: 'For a park visit, prepare for comfort outdoors.',
+    items: [
+      { id: 'sun', label: 'Hat, sunglasses, or sunscreen' },
+      { id: 'layer', label: 'Light jacket or umbrella if the weather may change' },
+      { id: 'seat', label: 'Check where benches or rest spots are along the way' },
+      { id: 'support', label: 'Walking aid or support item if you use one' }
+    ]
+  },
+  default: {
+    intro: 'Check the items that may help with this trip.',
+    items: [
+      { id: 'details', label: 'Destination address or appointment details' },
+      { id: 'payment', label: 'Payment card or cash if needed' },
+      { id: 'notes', label: 'Any notes or documents for this visit' }
+    ]
+  }
+}
 
 const startMode = ref('')
 const destinationMode = ref('category')
@@ -638,7 +693,10 @@ const destinationValidationMessage = ref('')
 const visibleStep = ref(1)
 const maxReachableStep = ref(1)
 
-const readiness = reactive({ condition: 'good', medication: [], essentials: [] })
+const readiness = reactive({ tripItems: [], essentials: [] })
+const weather = reactive({ isLoading: false, error: '', current: null, daily: null })
+const shoppingInput = ref('')
+const shoppingItems = ref([])
 const result = reactive({
   destination: null,
   facilities: [],
@@ -646,6 +704,8 @@ const result = reactive({
   metrics: { distanceMeters: null, durationMinutes: null },
   score: null,
   scoreBreakdown: {},
+  facilitySummary: {},
+  canopy: null,
   comfortNotes: [],
   instructions: []
 })
@@ -666,6 +726,7 @@ const miniMapMarkers = []
 const routeMapMarkers = []
 
 const hasDestination = computed(() => !!result.destination)
+const destinationKind = computed(() => selectedType.value || result.destination?.type || selectedSpecificDestination.value?.type || '')
 const selectedTypeLabel = computed(() => destinationTypes.find((d) => d.id === selectedType.value)?.label || selectedSpecificDestination.value?.type || 'Destination')
 const selectedTypeIconUrl = computed(() => destinationTypes.find((d) => d.id === selectedType.value || d.id === selectedSpecificDestination.value?.type)?.icon || parkIcon)
 const destinationReadyLabel = computed(() => {
@@ -686,6 +747,10 @@ const walkMinutes = computed(() => Number.isFinite(result.metrics.durationMinute
 const walkMetric = computed(() => ({ value: walkMinutes.value, unit: 'min' }))
 const facilityBreakdown = computed(() => {
   const output = { bench: 0, drinking_fountain: 0, toilet: 0 }
+  Object.entries(result.facilitySummary || {}).forEach(([key, value]) => {
+    if (output[key] !== undefined && Number.isFinite(Number(value))) output[key] = Number(value)
+  })
+  if (Object.values(output).some((value) => value > 0)) return output
   result.facilities.forEach((item) => {
     if (output[item.type] !== undefined) output[item.type] += 1
   })
@@ -700,19 +765,72 @@ const scoreBreakdownRows = computed(() => [
   { key: 'shade', label: 'Shade', value: result.scoreBreakdown.shade ?? '--' },
   { key: 'slope', label: 'Slope comfort', value: result.scoreBreakdown.slope ?? '--' }
 ])
-const conditionAdvice = computed(() => {
-  if (readiness.condition === 'tired') return 'You may want to walk slowly, use rest stops, and keep the highest-scored route.'
-  if (readiness.condition === 'unwell') return 'Consider postponing this trip or contacting a trusted person before leaving. You can still continue if you decide it is suitable.'
-  return ''
+const destinationChecklist = computed(() => destinationChecklistByType[destinationKind.value] || destinationChecklistByType.default)
+const destinationChecklistIntro = computed(() => destinationChecklist.value.intro)
+const destinationChecklistItems = computed(() => destinationChecklist.value.items)
+const weatherCodeLabel = (code) => {
+  if ([0, 1].includes(code)) return 'mostly clear'
+  if ([2, 3].includes(code)) return 'cloudy'
+  if ([45, 48].includes(code)) return 'foggy'
+  if ([51, 53, 55, 56, 57].includes(code)) return 'drizzly'
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'rainy'
+  if ([95, 96, 99].includes(code)) return 'stormy'
+  return 'changeable'
+}
+const weatherAdvice = computed(() => {
+  if (weather.isLoading) {
+    return {
+      tone: 'normal',
+      message: 'Checking the latest weather for your starting area.',
+      items: ['Please wait a moment before you leave.']
+    }
+  }
+  if (weather.error || !weather.current) {
+    return {
+      tone: 'normal',
+      message: 'Weather advice is not available right now.',
+      items: ['Please check the sky before leaving.', 'Bring water and sun or rain protection if needed.']
+    }
+  }
+  const temperature = Math.round(Number(weather.current.temperature_2m))
+  const apparent = Math.round(Number(weather.current.apparent_temperature))
+  const wind = Math.round(Number(weather.current.wind_speed_10m))
+  const precipitation = Number(weather.current.precipitation ?? weather.current.rain ?? 0)
+  const dailyRainChance = Number(weather.daily?.precipitation_probability_max?.[0])
+  const code = Number(weather.current.weather_code)
+  const items = []
+  let tone = 'normal'
+
+  if (temperature >= 28 || apparent >= 30) {
+    tone = 'caution'
+    items.push('It may feel warm. Take water, wear a hat, and rest in shade when you can.')
+  } else if (temperature <= 12) {
+    items.push('It may feel cool. A warm layer can make the walk more comfortable.')
+  } else {
+    items.push('The temperature looks comfortable for a short walk.')
+  }
+  if (precipitation > 0 || dailyRainChance >= 40 || [51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82].includes(code)) {
+    tone = 'caution'
+    items.push('Rain is possible. Bring an umbrella or rain jacket, and take care on wet paths.')
+  }
+  if (wind >= 28) {
+    tone = 'caution'
+    items.push('It may be windy. Walk slowly and avoid carrying loose items.')
+  }
+  items.push('If the weather changes, it is okay to pause or choose another time.')
+
+  return {
+    tone,
+    message: `Current weather looks ${weatherCodeLabel(code)}, about ${temperature}°C.`,
+    items
+  }
 })
 const readinessRouteAlerts = computed(() => [
   'This route can include backend comfort markers for benches, toilets, and drinking fountains.',
-  'Consider bringing water and sun protection if this applies to your trip.'
+  'Tree canopy shade is displayed on the final route map when available.'
 ])
 const readinessResult = computed(() => {
-  if (readiness.condition === 'unwell') return { title: 'Consider postponing', copy: 'If unsure, contact a trusted person before leaving.' }
-  if (readiness.condition === 'tired') return { title: 'Go with caution', copy: 'Take your time and use reminders that apply to you.' }
-  return { title: 'Good to go', copy: 'Your route and basic reminders are ready.' }
+  return { title: 'Ready when you are', copy: 'Use this list as a gentle reminder. You can still decide what applies to you today.' }
 })
 const routeInstructions = computed(() => result.instructions.length ? result.instructions : [
   { text: `Start from ${selectedStart.value?.name || 'your start point'}.`, distanceMeters: 0 },
@@ -720,8 +838,8 @@ const routeInstructions = computed(() => result.instructions.length ? result.ins
   { text: 'Check the route notes before leaving.', distanceMeters: null }
 ])
 const canSeeRoute = computed(() => !!result.destination && result.route.length > 1)
+const showMapShoppingList = computed(() => destinationKind.value === 'grocery' && shoppingItems.value.length > 0)
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const formatScore = (score) => Number.isFinite(Number(score)) ? `${Math.round(Number(score))}/100` : 'Score --'
 const scoreTone = (score) => {
   const value = Number(score)
@@ -833,14 +951,13 @@ const setSelectedStart = async (place) => {
   scrollTo(destinationSectionEl.value)
 }
 
-const fakeExternalPlaceSearch = async (query, pool) => {
-  await sleep(450)
-  const term = query.trim().toLowerCase()
-  const matches = pool.filter((place) => `${place.name} ${place.address}`.toLowerCase().includes(term))
-  return matches.length ? matches : pool.slice(0, 3)
+const routePlanEndpoint = () => ROUTE_SERVICE_URL
+const placeSearchEndpoint = (text) => {
+  const url = new URL(PLACE_SEARCH_URL, window.location.origin)
+  url.searchParams.set('mode', 'text')
+  url.searchParams.set('text', text)
+  return url.toString()
 }
-
-const routePlanEndpoint = () => `${API_BASE_URL}/api/route/plan`
 const readJsonResponse = async (response) => {
   const text = await response.text()
   if (!text) return {}
@@ -850,14 +967,99 @@ const readJsonResponse = async (response) => {
     return { message: text }
   }
 }
-const normaliseBackendDestination = (destination) => ({
-  id: destination?.id || `${destination?.type || selectedType.value || 'destination'}-${destination?.lat || 'lat'}-${destination?.lng || 'lng'}`,
-  name: destination?.name || 'Recommended destination',
-  type: destination?.type || selectedType.value,
-  address: destination?.address || destination?.vicinity || destination?.formatted || selectedTypeLabel.value,
-  lat: Number(destination?.lat),
-  lng: Number(destination?.lng)
-})
+const inferDestinationType = (place) => {
+  const source = [
+    place?.type,
+    ...(Array.isArray(place?.categories) ? place.categories : [])
+  ].join(' ').toLowerCase()
+  if (source.includes('pharmacy') || source.includes('chemist')) return 'pharmacy'
+  if (source.includes('clinic') || source.includes('medical') || source.includes('doctor') || source.includes('dental')) return 'clinic'
+  if (source.includes('grocery') || source.includes('supermarket')) return 'grocery'
+  if (source.includes('cafe') || source.includes('coffee')) return 'cafe'
+  if (source.includes('park') || source.includes('garden')) return 'park'
+  return ''
+}
+const normalisePlaceSearchResults = (payload) => Array.isArray(payload?.places)
+  ? payload.places
+    .map((place, index) => {
+      const lat = Number(place.lat ?? place.latitude)
+      const lng = Number(place.lng ?? place.longitude)
+      return {
+        id: place.placeId || place.id || `${place.name || 'place'}-${lat}-${lng}-${index}`,
+        placeId: place.placeId || place.id || null,
+        name: place.name || 'Search result',
+        address: place.address || place.formattedAddress || place.vicinity || '',
+        type: inferDestinationType(place),
+        categories: Array.isArray(place.categories) ? place.categories : [],
+        lat,
+        lng
+      }
+    })
+    .filter((place) => Number.isFinite(place.lat) && Number.isFinite(place.lng))
+  : []
+const searchPlaces = async (query) => {
+  const response = await fetch(placeSearchEndpoint(query))
+  const payload = await readJsonResponse(response)
+  if (!response.ok) {
+    throw new Error(payload.error || payload.message || `Place search failed (${response.status})`)
+  }
+  return normalisePlaceSearchResults(payload)
+}
+let weatherRequestKey = ''
+const weatherEndpoint = (place) => {
+  const url = new URL('https://api.open-meteo.com/v1/forecast')
+  url.searchParams.set('latitude', place.lat)
+  url.searchParams.set('longitude', place.lng)
+  url.searchParams.set('current', 'temperature_2m,apparent_temperature,precipitation,rain,weather_code,wind_speed_10m')
+  url.searchParams.set('daily', 'weather_code,temperature_2m_max,precipitation_probability_max')
+  url.searchParams.set('timezone', 'auto')
+  return url.toString()
+}
+const loadWeatherForStart = async () => {
+  const place = selectedStart.value
+  if (!place?.lat || !place?.lng) return
+  const requestKey = `${place.lat},${place.lng}`
+  if (weatherRequestKey === requestKey && (weather.current || weather.isLoading)) return
+  weatherRequestKey = requestKey
+  weather.isLoading = true
+  weather.error = ''
+  try {
+    const response = await fetch(weatherEndpoint(place))
+    const payload = await readJsonResponse(response)
+    if (!response.ok) throw new Error(payload.reason || payload.error || `Weather request failed (${response.status})`)
+    weather.current = payload.current || null
+    weather.daily = payload.daily || null
+  } catch (error) {
+    weather.current = null
+    weather.daily = null
+    weather.error = error instanceof Error ? error.message : 'Weather request failed.'
+  } finally {
+    weather.isLoading = false
+  }
+}
+const addShoppingItem = () => {
+  const text = shoppingInput.value.trim()
+  if (!text) return
+  shoppingItems.value.push({ id: `${Date.now()}-${Math.random().toString(16).slice(2)}`, text })
+  shoppingInput.value = ''
+}
+const removeShoppingItem = (id) => {
+  shoppingItems.value = shoppingItems.value.filter((item) => item.id !== id)
+}
+const normaliseBackendDestination = (destination, fallback = {}) => {
+  const lat = Number(destination?.lat ?? destination?.latitude ?? fallback.lat)
+  const lng = Number(destination?.lng ?? destination?.longitude ?? fallback.lng)
+  const type = destination?.type || fallback.type || selectedType.value
+  return {
+    id: destination?.id || destination?.placeId || fallback.id || `${type || 'destination'}-${lat || 'lat'}-${lng || 'lng'}`,
+    placeId: destination?.placeId || fallback.placeId || null,
+    name: destination?.name || fallback.name || 'Recommended destination',
+    type,
+    address: destination?.address || destination?.vicinity || destination?.formatted || fallback.address || selectedTypeLabel.value,
+    lat,
+    lng
+  }
+}
 const normaliseBackendFacilities = (facilities) => Array.isArray(facilities)
   ? facilities
     .map((item, index) => ({
@@ -866,7 +1068,7 @@ const normaliseBackendFacilities = (facilities) => Array.isArray(facilities)
       name: item.name || item.label || item.type || 'Route facility',
       lat: Number(item.lat ?? item.latitude),
       lng: Number(item.lng ?? item.longitude),
-      distanceMeters: Number.isFinite(Number(item.distanceMeters)) ? Number(item.distanceMeters) : null,
+      distanceMeters: Number.isFinite(Number(item.distanceMeters ?? item.distanceToRouteMeters)) ? Number(item.distanceMeters ?? item.distanceToRouteMeters) : null,
       conditionRating: Number.isFinite(Number(item.conditionRating)) ? Number(item.conditionRating) : null,
       wheelchair: item.wheelchair,
       lastUpdated: item.lastUpdated
@@ -891,17 +1093,20 @@ const buildBackendComfortNotes = (facilities, routeSummary) => {
   if (Number.isFinite(distance)) notes.push(`${formatDistance(distance)} backend walking route`)
   return notes
 }
-const buildBackendRecommendation = (payload) => {
-  const destination = normaliseBackendDestination(payload.destination)
+const buildBackendRecommendation = (payload, index = 0) => {
+  const fallbackDestination = destinationMode.value === 'specific' ? selectedSpecificDestination.value : {}
+  const destination = normaliseBackendDestination(payload.destination, fallbackDestination)
   const facilities = normaliseBackendFacilities(payload.facilities)
   const routeSummary = payload.routeSummary || {}
   const distanceMeters = Number(routeSummary.walkingDistanceMeters ?? destination.distanceMeters)
-  const durationMinutes = Number(routeSummary.walkingDurationMinutes ?? (Number(routeSummary.walkingDurationSeconds) / 60))
+  const durationMinutes = Number(routeSummary.elderlyWalkingDurationMinutes ?? routeSummary.walkingDurationMinutes ?? (Number(routeSummary.walkingDurationSeconds) / 60))
   return {
-    id: destination.id,
+    id: payload.optionId || destination.id || `route-option-${index + 1}`,
+    optionId: payload.optionId ?? index + 1,
     destination,
     route: normaliseBackendRoute(payload.route),
     facilities,
+    facilitySummary: payload.facilitySummary || {},
     metrics: {
       distanceMeters: Number.isFinite(distanceMeters) ? distanceMeters : null,
       durationMinutes: Number.isFinite(durationMinutes) ? durationMinutes : null
@@ -912,18 +1117,50 @@ const buildBackendRecommendation = (payload) => {
     instructions: []
   }
 }
+const buildRecommendationsFromPayload = (payload) => {
+  if (DEBUG_PLANNER) {
+    console.info('[GreenPath route response]', {
+      mode: payload?.mode,
+      eligible: payload?.eligible,
+      optionCount: Array.isArray(payload?.options) ? payload.options.length : null,
+      routeLength: Array.isArray(payload?.route) ? payload.route.length : null,
+      optionRouteLengths: Array.isArray(payload?.options) ? payload.options.map((option) => option?.route?.length || 0) : []
+    })
+  }
+  if (payload?.eligible === false) return []
+  if (Array.isArray(payload?.options)) {
+    return payload.options
+      .filter((option) => option?.eligible !== false)
+      .map((option, index) => buildBackendRecommendation(option, index))
+      .filter((option) => option.destination && option.route.length > 1)
+  }
+  if (payload?.destination) return [buildBackendRecommendation(payload, 0)].filter((option) => option.route.length > 1)
+  return []
+}
 const fetchBackendPlan = async () => {
-  const requestType = destinationMode.value === 'specific'
-    ? (selectedSpecificDestination.value?.type || selectedType.value)
-    : selectedType.value
+  const start = {
+    name: selectedStart.value.name,
+    lat: selectedStart.value.lat,
+    lng: selectedStart.value.lng
+  }
+  const body = destinationMode.value === 'specific'
+    ? {
+        mode: 'custom_destination',
+        start,
+        destination: {
+          name: selectedSpecificDestination.value.name,
+          lat: selectedSpecificDestination.value.lat,
+          lng: selectedSpecificDestination.value.lng
+        }
+      }
+    : {
+        mode: 'destination_type',
+        start,
+        destinationType: selectedType.value
+      }
   const response = await fetch(routePlanEndpoint(), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      type: requestType,
-      userLat: selectedStart.value.lat,
-      userLng: selectedStart.value.lng
-    })
+    body: JSON.stringify(body)
   })
   const payload = await readJsonResponse(response)
   if (!response.ok) {
@@ -934,16 +1171,47 @@ const fetchBackendPlan = async () => {
 
 const useMyLocation = async () => {
   startMode.value = 'current'
+  startValidationMessage.value = ''
+  if (!navigator.geolocation) {
+    startValidationMessage.value = 'Current location is not available in this browser. Please search for a starting point.'
+    return
+  }
   isLocating.value = true
-  await sleep(500)
-  await setSelectedStart(DEFAULT_LOCATION)
-  startSearchResults.value = []
-  isLocating.value = false
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 60000
+      })
+    })
+    await setSelectedStart({
+      id: 'current-location',
+      name: 'Current location',
+      address: 'Detected by your browser',
+      lat: position.coords.latitude,
+      lng: position.coords.longitude
+    })
+    startSearchResults.value = []
+  } catch {
+    startValidationMessage.value = 'Current location could not be detected. Please search for a starting point.'
+  } finally {
+    isLocating.value = false
+  }
 }
 const runStartSearch = async () => {
+  if (!startQuery.value) return
   isSearchingStart.value = true
-  startSearchResults.value = await fakeExternalPlaceSearch(startQuery.value, mockStartPlaces)
-  isSearchingStart.value = false
+  startValidationMessage.value = ''
+  try {
+    startSearchResults.value = await searchPlaces(startQuery.value)
+    if (!startSearchResults.value.length) startValidationMessage.value = 'No matching places were returned. Try a more specific address or landmark.'
+  } catch (error) {
+    startSearchResults.value = []
+    startValidationMessage.value = error instanceof Error ? error.message : 'Place search failed.'
+  } finally {
+    isSearchingStart.value = false
+  }
 }
 const selectStartPlace = async (place) => {
   await setSelectedStart(place)
@@ -965,9 +1233,18 @@ const chooseDestinationType = (id) => {
   invalidateFromDestinationChange()
 }
 const runDestinationSearch = async () => {
+  if (!destinationQuery.value) return
   isSearchingDestination.value = true
-  destinationSearchResults.value = await fakeExternalPlaceSearch(destinationQuery.value, mockSpecificPlaces)
-  isSearchingDestination.value = false
+  destinationValidationMessage.value = ''
+  try {
+    destinationSearchResults.value = await searchPlaces(destinationQuery.value)
+    if (!destinationSearchResults.value.length) destinationValidationMessage.value = 'No matching destinations were returned. Try a more specific place name.'
+  } catch (error) {
+    destinationSearchResults.value = []
+    destinationValidationMessage.value = error instanceof Error ? error.message : 'Destination search failed.'
+  } finally {
+    isSearchingDestination.value = false
+  }
 }
 const selectSpecificDestination = async (place) => {
   if (samePlace(selectedSpecificDestination.value, place)) return
@@ -981,11 +1258,12 @@ const selectSpecificDestination = async (place) => {
     return
   }
   selectedSpecificDestination.value = place
-  selectedType.value = place.type
+  selectedType.value = place.type || ''
   invalidateFromDestinationChange()
 }
 
 const clearPlanOnly = () => {
+  canopyRequestId += 1
   hasSearched.value = false
   recommendations.value = []
   highlightedRecommendationId.value = ''
@@ -997,6 +1275,8 @@ const clearPlanOnly = () => {
     metrics: { distanceMeters: null, durationMinutes: null },
     score: null,
     scoreBreakdown: {},
+    facilitySummary: {},
+    canopy: null,
     comfortNotes: [],
     instructions: []
   })
@@ -1026,15 +1306,19 @@ const requestPlan = async () => {
   hasSearched.value = true
   try {
     const payload = await fetchBackendPlan()
-    const backendDestination = normaliseBackendDestination(payload.destination)
-    if (!payload.destination) {
-      planError.value = payload.message || 'No suitable destination was returned.'
-      recommendations.value = []
-    } else if (!await isPlaceInSupportedArea(backendDestination)) {
-      planError.value = 'The recommended destination is outside the supported Central Melbourne area. Please choose another destination.'
+    if (payload?.eligible === false) {
+      planError.value = payload.message || 'This route is outside the supported walking range.'
       recommendations.value = []
     } else {
-      recommendations.value = [buildBackendRecommendation(payload)]
+      const backendRecommendations = buildRecommendationsFromPayload(payload)
+      const supportedRecommendations = []
+      for (const recommendation of backendRecommendations) {
+        if (await isPlaceInSupportedArea(recommendation.destination)) supportedRecommendations.push(recommendation)
+      }
+      if (!supportedRecommendations.length) {
+        planError.value = payload.message || 'No suitable route option was returned.'
+      }
+      recommendations.value = supportedRecommendations
     }
   } catch (error) {
     planError.value = error instanceof Error ? error.message : 'Route planner request failed.'
@@ -1046,7 +1330,41 @@ const requestPlan = async () => {
   drawMiniMap()
   scrollTo(resultsSectionEl.value)
 }
+const normaliseCanopyGeoJson = (payload) => {
+  if (payload?.type !== 'FeatureCollection' || !Array.isArray(payload.features)) return emptyFeatureCollection()
+  return {
+    type: 'FeatureCollection',
+    features: payload.features.filter((feature) => feature?.type === 'Feature' && feature.geometry)
+  }
+}
+let canopyRequestId = 0
+const loadCanopyForRoute = async (route) => {
+  const routePoints = normaliseBackendRoute(route)
+  const requestId = ++canopyRequestId
+  result.canopy = null
+  if (routePoints.length < 2) return
+  try {
+    const response = await fetch(CANOPY_QUERY_URL, {
+      method: 'POST',
+      body: JSON.stringify({ routePoints })
+    })
+    const payload = await readJsonResponse(response)
+    if (!response.ok) throw new Error(payload.error || payload.message || `Canopy request failed (${response.status})`)
+    if (requestId === canopyRequestId) {
+      result.canopy = normaliseCanopyGeoJson(payload)
+      if (DEBUG_PLANNER) console.info('[GreenPath canopy response]', { featureCount: result.canopy.features.length })
+      if (map) requestAnimationFrame(() => drawRouteMap())
+    }
+  } catch {
+    if (requestId === canopyRequestId) {
+      result.canopy = emptyFeatureCollection()
+      if (DEBUG_PLANNER) console.info('[GreenPath canopy unavailable]')
+      if (map) requestAnimationFrame(() => drawRouteMap())
+    }
+  }
+}
 const applySelectedRecommendation = (recommendation) => {
+  if (!recommendation) canopyRequestId += 1
   Object.assign(result, {
     destination: recommendation?.destination || null,
     facilities: recommendation?.facilities || [],
@@ -1054,17 +1372,29 @@ const applySelectedRecommendation = (recommendation) => {
     metrics: recommendation?.metrics || { distanceMeters: null, durationMinutes: null },
     score: recommendation?.score ?? null,
     scoreBreakdown: recommendation?.scoreBreakdown || {},
+    facilitySummary: recommendation?.facilitySummary || {},
+    canopy: null,
     comfortNotes: recommendation?.comfortNotes || [],
     instructions: recommendation?.instructions || []
   })
 }
 const selectRecommendation = async (recommendation) => {
+  if (DEBUG_PLANNER) {
+    console.info('[GreenPath selected route]', {
+      id: recommendation?.id,
+      destination: recommendation?.destination?.name,
+      routeLength: recommendation?.route?.length || 0,
+      first: recommendation?.route?.[0],
+      last: recommendation?.route?.at?.(-1)
+    })
+  }
   applySelectedRecommendation(recommendation)
   highlightedRecommendationId.value = recommendation?.id || ''
   unlockStep(4)
   destroyMiniMap()
   await nextTick()
   drawMiniMap()
+  loadCanopyForRoute(recommendation?.route || [])
   scrollTo(resultsSectionEl.value)
 }
 const backToRecommendations = async () => {
@@ -1119,6 +1449,11 @@ const facilityMarkerHtml = (item) => {
   return ''
 }
 
+const absoluteMapAssetUrl = (url) => {
+  if (/^(https?:)?\/\//i.test(url) || url.startsWith('data:')) return url
+  const prefix = url.startsWith('/') ? '' : '/'
+  return `${window.location.origin}${prefix}${url}`
+}
 const loadMapStyle = async () => {
   if (!mapStylePromise) {
     mapStylePromise = fetch(MAP_STYLE_URL)
@@ -1128,8 +1463,8 @@ const loadMapStyle = async () => {
       })
       .then((style) => ({
         ...style,
-        glyphs: MAP_GLYPHS_URL,
-        sprite: MAP_SPRITE_URL,
+        glyphs: absoluteMapAssetUrl(MAP_GLYPHS_URL),
+        sprite: absoluteMapAssetUrl(MAP_SPRITE_URL),
         sources: {
           ...style.sources,
           openmaptiles: {
@@ -1165,7 +1500,7 @@ const distanceBetweenLngLat = ([lng1, lat1], [lng2, lat2]) => {
   return radius * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 const normaliseRouteDirection = (line) => {
-  const start = selectedStart.value || DEFAULT_LOCATION
+  const start = selectedStart.value || DEFAULT_MAP_CENTER
   if (line.length < 2 || start?.lng == null || start?.lat == null) return line
   const startPoint = [start.lng, start.lat]
   const distanceToFirst = distanceBetweenLngLat(startPoint, line[0])
@@ -1175,7 +1510,7 @@ const normaliseRouteDirection = (line) => {
 const routeConnectorFeatureCollection = () => {
   const features = []
   if (result.route.length > 1) {
-    const start = selectedStart.value || DEFAULT_LOCATION
+    const start = selectedStart.value || DEFAULT_MAP_CENTER
     const directedRoute = normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
     const routeStart = directedRoute[0]
     const routeEnd = directedRoute[directedRoute.length - 1]
@@ -1225,8 +1560,8 @@ const routeSegmentBetween = (line, startMeters, endMeters) => {
   return segment.length > 1 ? segment : null
 }
 const routeDashFeatureCollection = (line, offsetMeters = 0) => {
-  const dashMeters = 18
-  const gapMeters = 13
+  const dashMeters = 11
+  const gapMeters = 12
   const cycleMeters = dashMeters + gapMeters
   const totalMeters = routeLengthMeters(line)
   if (line.length < 2 || totalMeters <= 0) return emptyFeatureCollection()
@@ -1263,9 +1598,9 @@ const ensureRouteLayers = (targetMap, sourceId) => {
       type: 'line',
       source: sourceId,
       paint: {
-        'line-color': '#1b5e20',
-        'line-width': 7,
-        'line-opacity': 0.22
+        'line-color': '#e8efe6',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 8, 18, 13],
+        'line-opacity': 0.92
       },
       layout: { 'line-cap': 'round', 'line-join': 'round' }
     })
@@ -1276,9 +1611,9 @@ const ensureRouteLayers = (targetMap, sourceId) => {
       type: 'line',
       source: sourceId,
       paint: {
-        'line-color': '#2e7d32',
-        'line-width': 5,
-        'line-opacity': 0.16
+        'line-color': '#b9d7b3',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 5, 18, 8],
+        'line-opacity': 0.82
       },
       layout: { 'line-cap': 'round', 'line-join': 'round' }
     })
@@ -1289,8 +1624,8 @@ const ensureRouteLayers = (targetMap, sourceId) => {
       type: 'line',
       source: `${sourceId}-flow`,
       paint: {
-        'line-color': '#2e7d32',
-        'line-width': 5,
+        'line-color': '#34a853',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 5],
         'line-opacity': 0.96
       },
       layout: { 'line-cap': 'round', 'line-join': 'round' }
@@ -1302,9 +1637,9 @@ const ensureRouteLayers = (targetMap, sourceId) => {
       type: 'line',
       source: `${sourceId}-connectors`,
       paint: {
-        'line-color': '#2e7d32',
-        'line-width': 3,
-        'line-opacity': 0.72,
+        'line-color': '#1b7f3a',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 12, 3, 18, 5],
+        'line-opacity': 0.9,
         'line-dasharray': [1.2, 1.6]
       },
       layout: { 'line-cap': 'round', 'line-join': 'round' }
@@ -1322,8 +1657,8 @@ const startRouteDashAnimation = () => {
     if (map?.getSource('planner-route-flow')) {
       map.getSource('planner-route-flow').setData(flowData)
     }
-    routeDashOffset = (routeDashOffset + 3.2) % 31
-    routeDashFrame = window.setTimeout(tick, 70)
+    routeDashOffset = (routeDashOffset + 1.6) % 23
+    routeDashFrame = window.setTimeout(tick, 80)
   }
   tick()
 }
@@ -1392,7 +1727,7 @@ const createPlannerMap = async (container, options = {}) => {
   const targetMap = new maplibregl.Map({
     container,
     style,
-    center: [DEFAULT_LOCATION.lng, DEFAULT_LOCATION.lat],
+    center: [DEFAULT_MAP_CENTER.lng, DEFAULT_MAP_CENTER.lat],
     zoom: options.zoom || 13,
     minZoom: MAP_MIN_ZOOM,
     maxZoom: MAP_MAX_ZOOM,
@@ -1522,10 +1857,70 @@ const moveRouteLayersToTop = (targetMap, sourceId) => {
     if (targetMap.getLayer(layerId)) targetMap.moveLayer(layerId)
   })
 }
+const moveCanopyLayersBelowRoute = (targetMap, sourceId) => {
+  const beforeLayer = targetMap.getLayer('planner-route-halo')
+    ? 'planner-route-halo'
+    : targetMap.getLayer('planner-boundary-line')
+      ? 'planner-boundary-line'
+      : undefined
+  ;[`${sourceId}-fill`, `${sourceId}-line`].forEach((layerId) => {
+    if (targetMap.getLayer(layerId)) targetMap.moveLayer(layerId, beforeLayer)
+  })
+}
 const moveFacilityLayersToTop = (targetMap, sourceId) => {
   ;[`${sourceId}-shadow`, `${sourceId}-circle`, `${sourceId}-icon`].forEach((layerId) => {
     if (targetMap.getLayer(layerId)) targetMap.moveLayer(layerId)
   })
+}
+const canopyFeatureCollection = () => result.canopy || emptyFeatureCollection()
+const ensureCanopyLayers = (targetMap, sourceId) => {
+  ensureGeoJsonSource(targetMap, sourceId)
+  if (!targetMap.getLayer(`${sourceId}-fill`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-fill`,
+      type: 'fill',
+      source: sourceId,
+      paint: {
+        'fill-color': '#7fc97a',
+        'fill-opacity': 0.36
+      }
+    })
+  }
+  if (!targetMap.getLayer(`${sourceId}-line`)) {
+    targetMap.addLayer({
+      id: `${sourceId}-line`,
+      type: 'line',
+      source: sourceId,
+      paint: {
+        'line-color': '#2f7d3f',
+        'line-width': 1.2,
+        'line-opacity': 0.55
+      },
+      layout: { 'line-cap': 'round', 'line-join': 'round' }
+    })
+  }
+}
+const drawCanopyLayer = (targetMap, sourceId) => {
+  if (!targetMap?.getStyle()) return
+  try {
+    ensureCanopyLayers(targetMap, sourceId)
+    const canopyData = canopyFeatureCollection()
+    targetMap.getSource(sourceId)?.setData(canopyData)
+    moveCanopyLayersBelowRoute(targetMap, sourceId)
+    if (DEBUG_PLANNER) {
+      console.info('[GreenPath draw canopy]', {
+        featureCount: canopyData.features.length,
+        styleLoaded: targetMap.isStyleLoaded(),
+        sourceExists: !!targetMap.getSource(sourceId),
+        layers: ['fill', 'line'].map((suffix) => ({
+          id: `${sourceId}-${suffix}`,
+          exists: !!targetMap.getLayer(`${sourceId}-${suffix}`)
+        }))
+      })
+    }
+  } catch (error) {
+    console.error('[GreenPath draw canopy failed]', error)
+  }
 }
 const fitMapToPoints = (targetMap, lngLatPoints, padding) => {
   if (!targetMap || !lngLatPoints.length) return
@@ -1536,11 +1931,51 @@ const fitMapToPoints = (targetMap, lngLatPoints, padding) => {
   targetMap.fitBounds(bounds, { padding, maxZoom: MAP_MAX_ZOOM, duration: 0 })
 }
 const drawRouteLine = (targetMap, sourceId, lngLatLine) => {
-  if (!targetMap?.isStyleLoaded()) return
-  ensureRouteLayers(targetMap, sourceId)
-  targetMap.getSource(sourceId)?.setData(routeFeatureCollection(lngLatLine))
-  targetMap.getSource(`${sourceId}-flow`)?.setData(routeDashFeatureCollection(lngLatLine, routeDashOffset))
-  targetMap.getSource(`${sourceId}-connectors`)?.setData(routeConnectorFeatureCollection())
+  if (DEBUG_PLANNER && sourceId === 'planner-route') {
+    console.info('[GreenPath draw route start]', {
+      pointCount: lngLatLine.length,
+      styleLoaded: !!targetMap?.isStyleLoaded(),
+      first: lngLatLine[0],
+      last: lngLatLine.at?.(-1)
+    })
+  }
+  if (!targetMap?.getStyle()) return
+  try {
+    ensureRouteLayers(targetMap, sourceId)
+    const routeData = routeFeatureCollection(lngLatLine)
+    targetMap.getSource(sourceId)?.setData(routeData)
+    targetMap.getSource(`${sourceId}-flow`)?.setData(routeDashFeatureCollection(lngLatLine, routeDashOffset))
+    targetMap.getSource(`${sourceId}-connectors`)?.setData(routeConnectorFeatureCollection())
+    if (DEBUG_PLANNER && sourceId === 'planner-route') {
+      console.info('[GreenPath draw route]', {
+        pointCount: lngLatLine.length,
+        featureCount: routeData.features.length,
+        first: lngLatLine[0],
+        last: lngLatLine.at?.(-1),
+        sourceExists: !!targetMap.getSource(sourceId),
+        flowSourceExists: !!targetMap.getSource(`${sourceId}-flow`),
+        connectorSourceExists: !!targetMap.getSource(`${sourceId}-connectors`),
+        renderedFeatureCount: targetMap.querySourceFeatures(sourceId).length,
+        mapCenter: targetMap.getCenter().toArray(),
+        zoom: targetMap.getZoom(),
+        paint: targetMap.getLayer(`${sourceId}-line`) ? {
+          color: targetMap.getPaintProperty(`${sourceId}-line`, 'line-color'),
+          width: targetMap.getPaintProperty(`${sourceId}-line`, 'line-width'),
+          opacity: targetMap.getPaintProperty(`${sourceId}-line`, 'line-opacity')
+        } : null,
+        layoutVisibility: targetMap.getLayer(`${sourceId}-line`)
+          ? targetMap.getLayoutProperty(`${sourceId}-line`, 'visibility') || 'visible'
+          : null,
+        layers: ['halo', 'line', 'flow-line', 'connectors-line'].map((suffix) => ({
+          id: `${sourceId}-${suffix}`,
+          exists: !!targetMap.getLayer(`${sourceId}-${suffix}`)
+        }))
+      })
+    }
+  } catch (error) {
+    console.error('[GreenPath draw route failed]', error)
+    return
+  }
   moveBoundaryLayersToTop(targetMap)
   moveRouteLayersToTop(targetMap, sourceId)
   if (lngLatLine.length > 1) {
@@ -1552,7 +1987,7 @@ const drawRouteLine = (targetMap, sourceId, lngLatLine) => {
 const drawMarkerSet = (targetMap, markers, lngLatBounds, includeFacilities = false) => {
   if (!targetMap) return
   clearMarkers(markers)
-  const start = selectedStart.value || DEFAULT_LOCATION
+  const start = selectedStart.value || DEFAULT_MAP_CENTER
   addHtmlMarker(
     targetMap,
     markers,
@@ -1595,12 +2030,7 @@ const drawMiniMap = async () => {
   await ensureMiniMap()
   if (!miniMap?.isStyleLoaded()) return
   const lngLatBounds = []
-  const line = hasDestination.value && result.route.length > 1
-    ? normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
-    : []
-  drawRouteLine(miniMap, 'planner-mini-route', line)
-  drawMarkerSet(miniMap, miniMapMarkers, lngLatBounds, hasDestination.value)
-  if (line.length) lngLatBounds.push(...line)
+  drawMarkerSet(miniMap, miniMapMarkers, lngLatBounds, false)
   fitMapToPoints(miniMap, lngLatBounds, 34)
   requestAnimationFrame(() => miniMap?.resize())
 }
@@ -1611,21 +2041,50 @@ const destroyMiniMap = () => {
 }
 const ensureMap = async () => {
   if (map || !mapEl.value) return
-  const start = selectedStart.value || DEFAULT_LOCATION
+  const start = selectedStart.value || DEFAULT_MAP_CENTER
   map = await createPlannerMap(mapEl.value, { zoom: 14, scrollZoom: true, onLoad: drawRouteMap })
   map.setCenter([start.lng, start.lat])
   map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'bottom-right')
 }
 const drawRouteMap = async () => {
   await ensureMap()
-  if (!map?.isStyleLoaded()) return
+  if (!map) return
+  if (DEBUG_PLANNER) {
+    console.info('[GreenPath draw route map entry]', {
+      hasMapElement: !!mapEl.value,
+      styleLoaded: map.isStyleLoaded(),
+      routeLength: result.route.length,
+      destination: result.destination?.name
+    })
+  }
+  if (!map.isStyleLoaded()) {
+    map.once('load', () => drawRouteMap())
+    map.once('idle', () => drawRouteMap())
+    return
+  }
   const lngLatBounds = []
-  const line = result.route.length > 1
-    ? normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
-    : []
+  let line = []
+  try {
+    line = result.route.length > 1
+      ? normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
+      : []
+  } catch (error) {
+    console.error('[GreenPath route normalise failed]', error)
+    line = []
+  }
   drawRouteLine(map, 'planner-route', line)
   if (line.length) lngLatBounds.push(...line)
-  drawMarkerSet(map, routeMapMarkers, lngLatBounds, true)
+  try {
+    drawCanopyLayer(map, 'planner-canopy')
+    moveRouteLayersToTop(map, 'planner-route')
+  } catch (error) {
+    console.error('[GreenPath draw canopy failed]', error)
+  }
+  try {
+    drawMarkerSet(map, routeMapMarkers, lngLatBounds, true)
+  } catch (error) {
+    console.error('[GreenPath draw markers failed]', error)
+  }
   fitMapToPoints(map, lngLatBounds, 48)
   requestAnimationFrame(() => map?.resize())
 }
@@ -1634,6 +2093,7 @@ const openReadinessCheck = () => {
   if (!hasDestination.value) return
   unlockStep(4)
   isReadinessOpen.value = true
+  loadWeatherForStart()
 }
 const closeReadinessToResults = async () => {
   isReadinessOpen.value = false
@@ -1711,6 +2171,7 @@ watch(
   () => isRouteView.value,
   (visible) => {
     if (!visible) {
+      stopRouteDashAnimation()
       clearMarkers(routeMapMarkers)
       map?.remove()
       map = null
