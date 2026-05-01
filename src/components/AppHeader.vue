@@ -3,7 +3,7 @@
     <div class="shell header-inner">
       <RouterLink class="brand" to="/">
         <BrandMark class="brand-mark" />
-        <span>GreenPath</span>
+        <span>Shadeo</span>
       </RouterLink>
 
       <nav class="main-nav" aria-label="Primary">

@@ -1,6 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="greenpathLogoTitle greenpathLogoDesc">
-  <title id="greenpathLogoTitle">GreenPath logo</title>
-  <desc id="greenpathLogoDesc">A location pin combined with a walking path motif in green tones.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="shadeoLogoTitle shadeoLogoDesc">
+  <title id="shadeoLogoTitle">Shadeo logo</title>
+  <desc id="shadeoLogoDesc">A location pin combined with a walking path motif in green tones.</desc>
   <path d="M16 39L32 27L48 39L32 48Z" fill="#83a067" />
   <path d="M16 39L32 27L32 48Z" fill="#728f5a" />
   <path d="M48 39L32 27L32 48Z" fill="#8daa70" />

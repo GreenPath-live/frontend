@@ -5,7 +5,7 @@ import WhyWalkPage from '../pages/WhyWalkPage.vue'
 import PlannerPage from '../pages/PlannerPage.vue'
 
 const DEFAULT_SITE_PASSWORD_HASH = '348a1f0bf99cad5a994150e7ba43d109a1b9a3ee8d442950570519bacfd0f934'
-const ACCESS_STORAGE_KEY = 'greenpath-site-access'
+const ACCESS_STORAGE_KEY = 'shadeo-site-access'
 const configuredSitePasswordHash = (import.meta.env.VITE_SITE_PASSWORD_HASH || DEFAULT_SITE_PASSWORD_HASH).trim().toLowerCase()
 
 const isRouteUnlocked = () => {

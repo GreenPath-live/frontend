@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <main class="route-planner-page enhanced-planner" :class="{ 'is-route-view': isRouteView }">
     <div class="planner-scene" aria-hidden="true"></div>
     <div class="planner-scene-overlay" aria-hidden="true"></div>
@@ -27,7 +27,7 @@
           <span>1</span>
           <div>
             <h2>Starting point</h2>
-            <p>Choose how GreenPath should set where your walk begins.</p>
+            <p>Choose how Shadeo should set where your walk begins.</p>
           </div>
         </div>
 
@@ -100,7 +100,7 @@
           <span>2</span>
           <div>
             <h2>Destination</h2>
-            <p>First choose whether you already know the place, or want GreenPath to suggest by category.</p>
+            <p>First choose whether you already know the place, or want Shadeo to suggest by category.</p>
           </div>
         </div>
 
@@ -114,7 +114,7 @@
         </div>
 
         <div v-if="destinationMode === 'category'" class="planner-category-panel">
-          <p class="planner-panel-instruction">Select one destination type. GreenPath will request nearby route options from the backend.</p>
+          <p class="planner-panel-instruction">Select one destination type. Shadeo will request nearby route options from the backend.</p>
           <div class="planner-type-grid planner-type-grid-clean">
             <button
               v-for="item in destinationTypes"
@@ -181,7 +181,7 @@
         <article v-if="currentStep === 3 && isLoadingPlan" class="planner-card planner-result-loading-card planner-step-pop">
           <span class="planner-spinner" aria-hidden="true"></span>
           <h3>Requesting your route...</h3>
-          <p>GreenPath is checking the backend planner for the nearest suitable result.</p>
+          <p>Shadeo is checking the backend planner for the nearest suitable result.</p>
         </article>
 
         <article v-else-if="currentStep === 3 && hasSearched && recommendations.length && !hasDestination" class="planner-card planner-recommendation-layout planner-step-pop">
@@ -208,7 +208,7 @@
                 <span class="planner-destination-topline">
                   <span v-if="index === 0" class="planner-rec-label">Most Recommended</span>
                   <span class="planner-score-badge" :class="scoreTone(item.score)">
-                    <span aria-hidden="true">★</span>
+                    <span aria-hidden="true">��</span>
                     {{ formatScore(item.score) }}
                   </span>
                 </span>
@@ -821,7 +821,7 @@ const weatherAdvice = computed(() => {
 
   return {
     tone,
-    message: `Current weather looks ${weatherCodeLabel(code)}, about ${temperature}°C.`,
+    message: `Current weather looks ${weatherCodeLabel(code)}, about ${temperature}��C.`,
     items
   }
 })
@@ -1119,7 +1119,7 @@ const buildBackendRecommendation = (payload, index = 0) => {
 }
 const buildRecommendationsFromPayload = (payload) => {
   if (DEBUG_PLANNER) {
-    console.info('[GreenPath route response]', {
+    console.info('[Shadeo route response]', {
       mode: payload?.mode,
       eligible: payload?.eligible,
       optionCount: Array.isArray(payload?.options) ? payload.options.length : null,
@@ -1352,13 +1352,13 @@ const loadCanopyForRoute = async (route) => {
     if (!response.ok) throw new Error(payload.error || payload.message || `Canopy request failed (${response.status})`)
     if (requestId === canopyRequestId) {
       result.canopy = normaliseCanopyGeoJson(payload)
-      if (DEBUG_PLANNER) console.info('[GreenPath canopy response]', { featureCount: result.canopy.features.length })
+      if (DEBUG_PLANNER) console.info('[Shadeo canopy response]', { featureCount: result.canopy.features.length })
       if (map) requestAnimationFrame(() => drawRouteMap())
     }
   } catch {
     if (requestId === canopyRequestId) {
       result.canopy = emptyFeatureCollection()
-      if (DEBUG_PLANNER) console.info('[GreenPath canopy unavailable]')
+      if (DEBUG_PLANNER) console.info('[Shadeo canopy unavailable]')
       if (map) requestAnimationFrame(() => drawRouteMap())
     }
   }
@@ -1380,7 +1380,7 @@ const applySelectedRecommendation = (recommendation) => {
 }
 const selectRecommendation = async (recommendation) => {
   if (DEBUG_PLANNER) {
-    console.info('[GreenPath selected route]', {
+    console.info('[Shadeo selected route]', {
       id: recommendation?.id,
       destination: recommendation?.destination?.name,
       routeLength: recommendation?.route?.length || 0,
@@ -1908,7 +1908,7 @@ const drawCanopyLayer = (targetMap, sourceId) => {
     targetMap.getSource(sourceId)?.setData(canopyData)
     moveCanopyLayersBelowRoute(targetMap, sourceId)
     if (DEBUG_PLANNER) {
-      console.info('[GreenPath draw canopy]', {
+      console.info('[Shadeo draw canopy]', {
         featureCount: canopyData.features.length,
         styleLoaded: targetMap.isStyleLoaded(),
         sourceExists: !!targetMap.getSource(sourceId),
@@ -1919,7 +1919,7 @@ const drawCanopyLayer = (targetMap, sourceId) => {
       })
     }
   } catch (error) {
-    console.error('[GreenPath draw canopy failed]', error)
+    console.error('[Shadeo draw canopy failed]', error)
   }
 }
 const fitMapToPoints = (targetMap, lngLatPoints, padding) => {
@@ -1932,7 +1932,7 @@ const fitMapToPoints = (targetMap, lngLatPoints, padding) => {
 }
 const drawRouteLine = (targetMap, sourceId, lngLatLine) => {
   if (DEBUG_PLANNER && sourceId === 'planner-route') {
-    console.info('[GreenPath draw route start]', {
+    console.info('[Shadeo draw route start]', {
       pointCount: lngLatLine.length,
       styleLoaded: !!targetMap?.isStyleLoaded(),
       first: lngLatLine[0],
@@ -1947,7 +1947,7 @@ const drawRouteLine = (targetMap, sourceId, lngLatLine) => {
     targetMap.getSource(`${sourceId}-flow`)?.setData(routeDashFeatureCollection(lngLatLine, routeDashOffset))
     targetMap.getSource(`${sourceId}-connectors`)?.setData(routeConnectorFeatureCollection())
     if (DEBUG_PLANNER && sourceId === 'planner-route') {
-      console.info('[GreenPath draw route]', {
+      console.info('[Shadeo draw route]', {
         pointCount: lngLatLine.length,
         featureCount: routeData.features.length,
         first: lngLatLine[0],
@@ -1973,7 +1973,7 @@ const drawRouteLine = (targetMap, sourceId, lngLatLine) => {
       })
     }
   } catch (error) {
-    console.error('[GreenPath draw route failed]', error)
+    console.error('[Shadeo draw route failed]', error)
     return
   }
   moveBoundaryLayersToTop(targetMap)
@@ -2050,7 +2050,7 @@ const drawRouteMap = async () => {
   await ensureMap()
   if (!map) return
   if (DEBUG_PLANNER) {
-    console.info('[GreenPath draw route map entry]', {
+    console.info('[Shadeo draw route map entry]', {
       hasMapElement: !!mapEl.value,
       styleLoaded: map.isStyleLoaded(),
       routeLength: result.route.length,
@@ -2069,7 +2069,7 @@ const drawRouteMap = async () => {
       ? normaliseRouteDirection(result.route.map(([lng, lat]) => [lng, lat]))
       : []
   } catch (error) {
-    console.error('[GreenPath route normalise failed]', error)
+    console.error('[Shadeo route normalise failed]', error)
     line = []
   }
   drawRouteLine(map, 'planner-route', line)
@@ -2078,12 +2078,12 @@ const drawRouteMap = async () => {
     drawCanopyLayer(map, 'planner-canopy')
     moveRouteLayersToTop(map, 'planner-route')
   } catch (error) {
-    console.error('[GreenPath draw canopy failed]', error)
+    console.error('[Shadeo draw canopy failed]', error)
   }
   try {
     drawMarkerSet(map, routeMapMarkers, lngLatBounds, true)
   } catch (error) {
-    console.error('[GreenPath draw markers failed]', error)
+    console.error('[Shadeo draw markers failed]', error)
   }
   fitMapToPoints(map, lngLatBounds, 48)
   requestAnimationFrame(() => map?.resize())
@@ -2118,7 +2118,7 @@ const confirmReadyToGo = async () => {
 }
 const exportItinerary = () => {
   const text = [
-    'GreenPath Itinerary',
+    'Shadeo Itinerary',
     `Start: ${selectedStart.value?.name || 'Not selected'}`,
     `Destination: ${result.destination?.name || 'Not selected'}`,
     `Route score: ${formatScore(result.score)}`,
@@ -2132,7 +2132,7 @@ const exportItinerary = () => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = 'greenpath-itinerary.txt'
+  link.download = 'shadeo-itinerary.txt'
   link.click()
   URL.revokeObjectURL(url)
 }
