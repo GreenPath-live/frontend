@@ -11,7 +11,7 @@
           <span class="hero-title-accent">Stay Independent.</span>
         </h1>
         <p class="hero-copy">
-          GreenPath helps older adults choose comfortable walking routes with shade, gentler paths,
+          Shadeo helps older adults choose comfortable walking routes with shade, gentler paths,
           and nearby places to rest.
         </p>
 
@@ -208,10 +208,10 @@
     </section>
 
     <section class="section try-planner-section">
-      <div class="try-planner-hero" role="region" aria-label="Try GreenPath route planner">
+      <div class="try-planner-hero" role="region" aria-label="Try Shadeo route planner">
         <div class="try-planner-overlay"></div>
         <div class="try-planner-content">
-          <p class="try-planner-kicker">TRY GREENPATH TODAY</p>
+          <p class="try-planner-kicker">TRY SHADEO TODAY</p>
           <h2>Take a calm and confident walk today.</h2>
           <p>
             Open the route planner and preview a path that feels easier before you step outside.
@@ -241,7 +241,7 @@ const featureItems = [
     image: featImg1,
     imageAlt: 'Tree-lined shaded walking path on a sunny day',
     title: 'Routes with natural shade',
-    body: 'GreenPath favours paths with tree canopy or sheltered footpaths, so you are not walking in full sun on warm days.'
+    body: 'Shadeo favours paths with tree canopy or sheltered footpaths, so you are not walking in full sun on warm days.'
   },
   {
     image: featImg2,
@@ -259,13 +259,13 @@ const featureItems = [
     image: featImg4,
     imageAlt: 'Relaxed pedestrian street with a comfortable number of people',
     title: 'You are never walking alone',
-    body: 'GreenPath favours routes through areas with a steady, comfortable flow of people. If you ever need assistance, someone is never far away.'
+    body: 'Shadeo favours routes through areas with a steady, comfortable flow of people. If you ever need assistance, someone is never far away.'
   },
   {
     image: featImg5,
     imageAlt: 'Older adult walking outdoors with confidence',
     title: 'Distance still matters — we factor it in',
-    body: 'Within a comfortable walking range, GreenPath recommends the destination that best fits your needs today — so every step feels worth taking.'  
+    body: 'Within a comfortable walking range, Shadeo recommends the destination that best fits your needs today — so every step feels worth taking.'  
   }
 ]
 

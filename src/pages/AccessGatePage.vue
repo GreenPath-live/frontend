@@ -2,7 +2,7 @@
   <main class="site-gate-shell">
     <section class="site-gate-card" role="dialog" aria-modal="true" aria-labelledby="site-gate-title">
       <p class="site-gate-kicker">Restricted Access</p>
-      <h1 id="site-gate-title">Welcome to GreenPath.</h1>
+      <h1 id="site-gate-title">Welcome to Shadeo.</h1>
       <p class="site-gate-copy">Enter the site password to continue.</p>
 
       <form class="site-gate-form" @submit.prevent="unlockSite">
@@ -29,7 +29,7 @@ import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 const DEFAULT_SITE_PASSWORD_HASH = '348a1f0bf99cad5a994150e7ba43d109a1b9a3ee8d442950570519bacfd0f934'
-const ACCESS_STORAGE_KEY = 'greenpath-site-access'
+const ACCESS_STORAGE_KEY = 'shadeo-site-access'
 
 const configuredSitePasswordHash = (import.meta.env.VITE_SITE_PASSWORD_HASH || DEFAULT_SITE_PASSWORD_HASH).trim().toLowerCase()
 

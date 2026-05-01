@@ -7,7 +7,7 @@ Shadeo is a Vue 3 + Vite frontend focused on helping older adults plan walking r
 - Vue 3
 - Vite 5
 - Vue Router 4
-- Leaflet
+- MapLibre GL
 - Plain CSS
 
 ## Main Pages
@@ -41,18 +41,22 @@ The Vite dev server is configured to run on:
 http://localhost:5173
 ```
 
-### Backend API base URL
+### Backend API URLs
 
-The planner uses this backend API by default:
+The planner calls the deployed route, place search, and canopy query services by default:
 
 ```text
-https://g5m02vygkj.execute-api.ap-southeast-2.amazonaws.com
+VITE_ROUTE_SERVICE_URL=https://krdihvgnt5.execute-api.ap-southeast-2.amazonaws.com/default/new-route-service
+VITE_PLACE_SEARCH_URL=https://t0413oh804.execute-api.ap-southeast-2.amazonaws.com/default/place-search-service
+VITE_CANOPY_QUERY_URL=https://ev1dboadg5.execute-api.ap-southeast-2.amazonaws.com/default/canopy-query-service
 ```
 
-If you need to point the frontend to another backend, create a `.env.local` file in the `frontend` folder:
+If you need to point the frontend to another backend, create a `.env.local` file in the `frontend` folder and override any of those values:
 
 ```bash
-VITE_API_BASE_URL=https://your-backend-base-url
+VITE_ROUTE_SERVICE_URL=https://your-route-service-url
+VITE_PLACE_SEARCH_URL=https://your-place-search-service-url
+VITE_CANOPY_QUERY_URL=https://your-canopy-query-service-url
 ```
 
 ### Build for production
@@ -121,9 +125,28 @@ Recommended Vercel setup:
 
 ## Planner Notes
 
-- The planner page uses Leaflet for the map view.
-- Some planner content is currently driven by frontend data and UI state.
-- Tree canopy and some route-support data are presented as part of the interface design and may later be supplied by backend services.
+- The planner page uses MapLibre GL for the map view.
+- Place search, route options, facilities, facility summaries, and tree canopy polygons are supplied by backend APIs.
+- Mini map previews intentionally show locations only. The final route map shows the walking route, support facilities, and canopy shade layer.
+
+## Static Vector Basemap
+
+The planner map loads a PMTiles vector basemap with the local Positron style in `public/styles/positron/style.json`.
+
+Recommended production setup:
+
+```bash
+VITE_MAP_STYLE_URL=/styles/positron/style.json
+VITE_PMTILES_URL=https://pub-64269a193cf745e5b366a287e94c5196.r2.dev/maps/melbourne.pmtiles
+VITE_MAP_MAX_ZOOM=18
+VITE_PMTILES_MAX_DATA_ZOOM=14
+VITE_MAP_GLYPHS_URL=https://your-public-r2-domain/fonts/{fontstack}/{range}.pbf
+VITE_MAP_SPRITE_URL=https://your-public-r2-domain/styles/positron/sprite
+```
+
+Keep `VITE_PMTILES_MAX_DATA_ZOOM` aligned with `pmtiles show`; the current Melbourne PMTiles file reports max zoom 14. `VITE_MAP_MAX_ZOOM` controls how far users can zoom in. If it is higher than the PMTiles data zoom, MapLibre overzooms the highest available tiles.
+
+For Cloudflare R2, use a public bucket URL, an `r2.dev` public development URL, or a custom domain. The S3 API endpoint ending in `r2.cloudflarestorage.com` is usually not a browser-facing public URL. The PMTiles URL must support public `GET`/`HEAD`, CORS, and range reads.
 
 ## Development Notes
 
