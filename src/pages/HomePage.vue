@@ -158,8 +158,7 @@ onBeforeUnmount(() => {
         </p>
       </HeroBlendSection>
 
-      <section id="intro" class="why-overview">
-        <span class="why-overview__side-label">Section 01 - Why choose us</span>
+      <section id="intro" class="why-overview" >
         <SectionKicker>The problem we address</SectionKicker>
         <h2>Hot days can make daily life harder.</h2>
         <div class="why-overview__intro">
@@ -326,21 +325,7 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.why-overview__side-label {
-  position: absolute;
-  left: 16px;
-  top: 50%;
-  z-index: 2;
-  transform: translateY(-50%) rotate(-90deg);
-  transform-origin: left center;
-  color: rgba(35, 45, 39, 0.36);
-  font-size: 0.82rem;
-  font-weight: 900;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-
-.why-overview > :not(.why-overview__side-label) {
+.why-overview > * {
   position: relative;
   z-index: 1;
 }
@@ -635,10 +620,6 @@ onBeforeUnmount(() => {
     max-width: 15ch;
     font-size: clamp(2.15rem, 9vw, 3.2rem);
     line-height: 1.08;
-  }
-
-  .why-overview__side-label {
-    display: none;
   }
 
   .why-overview__grid {
