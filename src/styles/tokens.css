@@ -26,6 +26,7 @@
   --brand-glow-lime:     rgba(155, 224, 111, 0.22);
   --brand-shadow-panel:  0 26px 72px -48px rgba(35, 45, 39, 0.38);
   --brand-shadow-nav:    0 18px 45px -30px rgba(35, 45, 39, 0.34);
+  --brand-focus-ring:    0 0 0 3px var(--brand-paper-white), 0 0 0 6px rgba(38, 48, 40, 0.82);
 
   --ink:           #1f2a1e;
   --ink-soft:      #3a4a3c;
@@ -64,6 +65,20 @@
   --fs-body:       1.125rem;          /* 18 px — older-reader floor */
   --fs-small:      0.95rem;
   --fs-caption:    0.825rem;
+
+  /* Accessible editorial type scale for Shadeo pages.
+     Body and control text stay at or above 18px for older users. */
+  --brand-fs-hero:     clamp(3rem, 5.7vw, 6.45rem);
+  --brand-fs-h2:       clamp(2.25rem, 3.85vw, 4.45rem);
+  --brand-fs-h3:       clamp(1.75rem, 2.5vw, 2.6rem);
+  --brand-fs-body:     clamp(1.125rem, 1.1vw, 1.25rem);
+  --brand-fs-lead:     clamp(1.125rem, 1.28vw, 1.32rem);
+  --brand-fs-control:  1.125rem;
+  --brand-fs-small:    1rem;
+  --brand-lh-heading:  1.04;
+  --brand-lh-copy:     1.56;
+  --brand-copy-width:  48ch;
+  --brand-touch:       48px;
 
   --lh-tight:      1.04;
   --lh-snug:       1.2;

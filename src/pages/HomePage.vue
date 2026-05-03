@@ -321,14 +321,14 @@ onBeforeUnmount(() => {
 
 .number-card strong {
   color: var(--brand-ink-soft);
-  font-size: clamp(1.28rem, 1.7vw, 1.58rem);
+  font-size: clamp(1.35rem, 1.7vw, 1.65rem);
   line-height: 1.15;
 }
 
 .number-card small {
   color: var(--brand-ink-muted);
-  font-size: 1rem;
-  line-height: 1.45;
+  font-size: var(--brand-fs-body);
+  line-height: var(--brand-lh-copy);
 }
 
 .video-visual video {
@@ -417,7 +417,8 @@ onBeforeUnmount(() => {
 
 .awareness-panel span {
   color: var(--brand-ink-muted);
-  font-size: 0.95rem;
+  font-size: var(--brand-fs-small);
+  line-height: 1.45;
 }
 
 .selfcheck-visual {
@@ -439,7 +440,7 @@ onBeforeUnmount(() => {
 
 .check-panel span {
   color: #1d371f;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -448,7 +449,7 @@ onBeforeUnmount(() => {
 .check-panel h3 {
   color: var(--brand-ink-soft);
   font-family: var(--font-body);
-  font-size: clamp(2rem, 3vw, 2.6rem);
+  font-size: var(--brand-fs-h3);
   font-weight: 950;
   letter-spacing: 0;
 }
@@ -474,7 +475,9 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 12px;
   color: var(--brand-ink-muted);
+  font-size: var(--brand-fs-body);
   font-weight: 650;
+  line-height: var(--brand-lh-copy);
 }
 
 .check-panel li {
@@ -509,6 +512,14 @@ onBeforeUnmount(() => {
   .number-card,
   .awareness-panel {
     grid-template-columns: 1fr;
+  }
+
+  .number-card {
+    padding: 22px;
+  }
+
+  .check-panel {
+    padding: 24px;
   }
 }
 

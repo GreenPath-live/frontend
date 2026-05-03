@@ -13,9 +13,9 @@ defineProps<{
 <style scoped>
 .section-kicker {
   color: #1d371f;
-  font-size: clamp(0.9rem, 1.1vw, 1rem);
+  font-size: clamp(1rem, 1.05vw, 1.125rem);
   font-weight: 900;
-  letter-spacing: 0.09em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 </style>

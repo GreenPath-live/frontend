@@ -45,16 +45,16 @@ withDefaults(
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 52px;
-  min-width: 112px;
-  padding: 0 26px;
+  min-height: 56px;
+  min-width: 128px;
+  padding: 0 28px;
   border-radius: 28px;
   border: 1.5px solid var(--btn-border);
   background: var(--btn-bg);
   color: var(--btn-fg);
   box-shadow: var(--btn-shadow);
   font-family: var(--font-body);
-  font-size: 1rem;
+  font-size: var(--brand-fs-control);
   font-weight: 900;
   letter-spacing: 0;
   white-space: nowrap;
@@ -81,14 +81,14 @@ withDefaults(
 }
 
 .btn--lg {
-  min-height: 60px;
-  min-width: 132px;
-  padding: 0 32px;
-  font-size: 1.05rem;
+  min-height: 64px;
+  min-width: 148px;
+  padding: 0 34px;
+  font-size: 1.1875rem;
 }
 
 .btn--icon {
-  min-width: 52px;
+  min-width: 56px;
   padding: 0;
   aspect-ratio: 1;
 }
@@ -121,5 +121,15 @@ withDefaults(
   opacity: 0.48;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .btn {
+    min-height: 58px;
+    width: 100%;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
+  }
 }
 </style>

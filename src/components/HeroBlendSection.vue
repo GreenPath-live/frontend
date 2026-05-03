@@ -106,18 +106,19 @@ withDefaults(
   max-width: 10.5ch;
   color: var(--brand-ink);
   font-family: var(--font-body);
-  font-size: clamp(3.9rem, 6.2vw, 7.1rem);
+  font-size: var(--brand-fs-hero);
   font-weight: 950;
-  line-height: 0.98;
+  line-height: 1;
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .hero-blend :slotted(p) {
   max-width: 38ch;
   color: var(--brand-ink-muted);
-  font-size: clamp(1.08rem, 1.35vw, 1.34rem);
+  font-size: var(--brand-fs-lead);
   font-weight: 650;
-  line-height: 1.5;
+  line-height: var(--brand-lh-copy);
 }
 
 @media (max-width: 980px) {
@@ -138,8 +139,8 @@ withDefaults(
   }
 
   .hero-blend :slotted(h1) {
-    max-width: 9.5ch;
-    font-size: clamp(3.2rem, 13vw, 5.8rem);
+    max-width: 10.5ch;
+    font-size: clamp(2.85rem, 11vw, 5.25rem);
   }
 }
 
@@ -156,6 +157,16 @@ withDefaults(
 
   .hero-blend__side-label {
     display: none;
+  }
+
+  .hero-blend :slotted(h1) {
+    max-width: 11.5ch;
+    font-size: clamp(2.6rem, 11vw, 4rem);
+    line-height: 1.04;
+  }
+
+  .hero-blend :slotted(p) {
+    max-width: 34ch;
   }
 }
 </style>

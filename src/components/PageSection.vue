@@ -104,18 +104,19 @@ withDefaults(
   max-width: 12.5ch;
   color: var(--brand-ink);
   font-family: var(--font-body);
-  font-size: clamp(2.8rem, 4.2vw, 5rem);
+  font-size: var(--brand-fs-h2);
   font-weight: 950;
-  line-height: 1.02;
+  line-height: var(--brand-lh-heading);
   letter-spacing: 0;
+  text-wrap: balance;
 }
 
 .page-section :slotted(p) {
-  max-width: 47ch;
+  max-width: var(--brand-copy-width);
   color: var(--brand-ink-muted);
-  font-size: clamp(1.08rem, 1.35vw, 1.34rem);
+  font-size: var(--brand-fs-lead);
   font-weight: 650;
-  line-height: 1.5;
+  line-height: var(--brand-lh-copy);
 }
 
 .page-section :slotted(.section-actions) {
@@ -139,7 +140,8 @@ withDefaults(
   }
 
   .page-section :slotted(h2) {
-    max-width: 13ch;
+    max-width: 14ch;
+    font-size: clamp(2.4rem, 7vw, 4rem);
   }
 }
 
@@ -159,6 +161,16 @@ withDefaults(
 
   .page-section :slotted(.section-actions .btn) {
     width: 100%;
+  }
+
+  .page-section :slotted(h2) {
+    max-width: 15ch;
+    font-size: clamp(2.15rem, 9vw, 3.2rem);
+    line-height: 1.08;
+  }
+
+  .page-section :slotted(p) {
+    max-width: 34ch;
   }
 }
 </style>

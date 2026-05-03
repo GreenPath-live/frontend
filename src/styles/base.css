@@ -63,8 +63,8 @@ h1, h2, h3, h4 {
 
 /* Universal focus ring ─────────────────────────────────────── */
 :focus-visible {
-  outline: 2.5px solid var(--shade-deep);
-  outline-offset: 3px;
+  outline: 0;
+  box-shadow: var(--brand-focus-ring);
   border-radius: var(--r-sm);
 }
 

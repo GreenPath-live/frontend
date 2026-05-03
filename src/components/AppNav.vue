@@ -122,14 +122,14 @@ const closeMenu = () => {
 }
 
 .nav__link {
-  min-height: 42px;
+  min-height: var(--brand-touch);
   display: inline-flex;
   align-items: center;
-  padding: 0 15px;
+  padding: 0 16px;
   border-radius: var(--r-pill);
   color: var(--brand-ink-muted);
   font-weight: 700;
-  font-size: 0.96rem;
+  font-size: 1rem;
   transition:
     color var(--d-fast) ease,
     background-color var(--d-fast) ease;
@@ -158,8 +158,8 @@ const closeMenu = () => {
 
 .nav__burger {
   display: none;
-  width: 44px;
-  height: 44px;
+  width: var(--brand-touch);
+  height: var(--brand-touch);
   border-radius: 15px;
   background: rgba(155, 224, 111, 0.25);
   align-items: center;
@@ -186,7 +186,7 @@ const closeMenu = () => {
   background: rgba(252, 247, 235, 0.96);
   border: 1px solid var(--brand-line);
   box-shadow: 0 24px 60px -36px rgba(35, 45, 39, 0.38);
-  pointer-events: auto;
+  pointer-events: none;
   opacity: 0;
   transform: translateY(-8px);
   transition:
@@ -197,12 +197,17 @@ const closeMenu = () => {
 .nav__sheet.is-open {
   opacity: 1;
   transform: none;
+  pointer-events: auto;
 }
 
 .nav__sheet-link {
-  padding: 13px 14px;
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  padding: 13px 16px;
   border-radius: 16px;
   color: var(--brand-ink-muted);
+  font-size: 1.125rem;
   font-weight: 800;
 }
 
@@ -234,13 +239,13 @@ const closeMenu = () => {
   }
 
   .nav__inner {
-    min-height: 62px;
-    padding: 9px 12px 9px 18px;
+    min-height: 64px;
+    padding: 8px 12px 8px 18px;
     border-radius: 18px;
   }
 
   .brand {
-    font-size: 1.18rem;
+    font-size: 1.25rem;
   }
 
   .nav__sheet {
