@@ -78,7 +78,7 @@ const setupSectionScroller = () => {
 
   const onWheel = (event: WheelEvent) => {
     const target = event.target as HTMLElement | null;
-    if (target?.closest('input, textarea, select, button, a, [data-native-scroll]')) return;
+    if (target?.closest('input, textarea, select, [data-native-scroll]')) return;
 
     event.preventDefault();
     if (isAnimating) return;
@@ -149,10 +149,8 @@ onBeforeUnmount(() => {
     <main>
       <HeroBlendSection
         id="hero"
-        side-label="Section 01 - Home"
         image-src="/herosection.png"
       >
-        <SectionKicker>For cooler days and stronger connections</SectionKicker>
         <h1>Helping seniors stay cool outdoors.</h1>
         <p>
           Shadeo helps older adults and carers understand heat risk, find cooler places,
@@ -160,50 +158,52 @@ onBeforeUnmount(() => {
         </p>
       </HeroBlendSection>
 
-      <PageSection id="intro" tone="warm" side-label="Section 02 - Why">
-        <template #copy>
-          <SectionKicker>Why we built this</SectionKicker>
-          <h2>Heat advice should feel clear before it feels urgent.</h2>
+      <section id="intro" class="why-overview">
+        <span class="why-overview__side-label">Section 01 - Why choose us</span>
+        <SectionKicker>The problem we address</SectionKicker>
+        <h2>Hot days can make daily life harder.</h2>
+        <div class="why-overview__intro">
           <p>
-            Shadeo turns heat safety into a calm sequence of decisions: check today's risk,
-            understand what makes a place harder on the body, and choose support nearby.
+            Shadeo helps older adults find cooler ways to go out, understand local heat,
+            check personal risk, and stay connected.
           </p>
-          <div class="section-actions">
-            <AppButton href="#navigation">See the Website Flow</AppButton>
+          <AppButton href="/why" variant="feature">Why Shadeo</AppButton>
+        </div>
+        <div class="why-overview__grid">
+          <div class="why-card">
+            <span>01</span>
+            <strong>Go out safely</strong>
+            <small>Find cooler routes to groceries, cafes, libraries, and other daily places.</small>
           </div>
-        </template>
+          <div class="why-card">
+            <span>02</span>
+            <strong>See who may need more care</strong>
+            <small>Maps show where heat, fewer trees, older residents, and limited support overlap.</small>
+          </div>
+          <div class="why-card">
+            <span>03</span>
+            <strong>Check your risk</strong>
+            <small>Answer a few questions about health, home, mobility, and support.</small>
+          </div>
+          <div class="why-card">
+            <span>04</span>
+            <strong>Stay connected</strong>
+            <small>Plan check-ins and cooler social outings before very hot days.</small>
+          </div>
+        </div>
+      </section>
 
-        <template #visual>
-          <VisualPanel padded>
-            <div class="number-card">
-              <span>01</span>
-              <strong>Know the heat risk</strong>
-              <small>Plain-language guidance before going outside.</small>
-            </div>
-            <div class="number-card">
-              <span>02</span>
-              <strong>Find cooler options</strong>
-              <small>Shade, water, seats, and support in one journey.</small>
-            </div>
-            <div class="number-card">
-              <span>03</span>
-              <strong>Act earlier</strong>
-              <small>Simple next steps for safer movement in hot weather.</small>
-            </div>
-          </VisualPanel>
-        </template>
-      </PageSection>
-
-      <PageSection id="navigation" tone="lime" side-label="Section 03 - Journey">
+      <PageSection id="navigation" tone="lime" side-label="Section 02 - Cool Routes">
         <template #copy>
-          <SectionKicker>The journey</SectionKicker>
-          <h2>Each section points to one useful screen.</h2>
+          <SectionKicker>Cool routes for daily needs</SectionKicker>
+          <h2>Find a nearby place, then choose the safer walk.</h2>
           <p>
-            The homepage works like a guided path: learn why heat matters, explore cooler
-            places, view awareness data, then complete the heat vulnerability self-check.
+            Pick a daily type such as groceries, cafe, library, or pharmacy. Shadeo can
+            suggest up to five nearby destinations, compare short routes, and score each
+            route using distance, shade cover, and rest facilities.
           </p>
           <div class="section-actions">
-            <AppButton href="#awareness">View Awareness</AppButton>
+            <AppButton href="#awareness" variant="feature">View Awareness</AppButton>
           </div>
         </template>
 
@@ -214,16 +214,17 @@ onBeforeUnmount(() => {
         </template>
       </PageSection>
 
-      <PageSection id="awareness" tone="warm" side-label="Section 04 - Awareness">
+      <PageSection id="awareness" tone="warm" side-label="Section 03 - Awareness">
         <template #copy>
           <SectionKicker>Raising awareness</SectionKicker>
-          <h2>Make heat exposure visible street by street.</h2>
+          <h2>Show where hot days may be harder.</h2>
           <p>
-            Shadeo shows how shade, rest stops, water access, and time outside can change
-            the comfort of a walk. The aim is awareness that leads directly to action.
+            Shadeo visualises where high heat, fewer trees, fewer cooling facilities,
+            older residents, and limited support may overlap. It helps people see who may
+            need more care before a hot day becomes risky.
           </p>
           <div class="section-actions">
-            <AppButton href="#self-check">Start Self-Check</AppButton>
+            <AppButton href="#self-check" variant="feature">Start Self-Check</AppButton>
           </div>
         </template>
 
@@ -252,16 +253,17 @@ onBeforeUnmount(() => {
         </template>
       </PageSection>
 
-      <PageSection id="self-check" tone="lime" side-label="Section 05 - Self-check">
+      <PageSection id="self-check" tone="lime" side-label="Section 04 - Self-check">
         <template #copy>
           <SectionKicker>Heat vulnerability self-check</SectionKicker>
-          <h2>A short check for rest, water, and help.</h2>
+          <h2>A short check for heat risk and support.</h2>
           <p>
-            The self-check stays quick and calm: a few plain questions, one risk level, and
-            practical next steps for safer decisions in hot weather.
+            The self-check looks at personal sensitivity, local exposure, home cooling,
+            mobility, and whether someone can check in. The result stays non-medical and
+            practical.
           </p>
           <div class="section-actions">
-            <AppButton href="#hero">Back to Top</AppButton>
+            <AppButton href="#hero" variant="feature">Back to Top</AppButton>
           </div>
         </template>
 
@@ -292,6 +294,120 @@ onBeforeUnmount(() => {
   background:
     radial-gradient(circle at 22% -8%, rgba(155, 224, 111, 0.14), transparent 32%),
     linear-gradient(180deg, var(--brand-paper-white) 0%, var(--brand-paper) 100%);
+}
+
+.why-overview {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+  padding: calc(var(--nav-h) + 54px) max(var(--gutter), calc((100vw - 1180px) / 2)) 58px;
+  background:
+    radial-gradient(circle at 78% 24%, rgba(155, 224, 111, 0.1), transparent 32%),
+    linear-gradient(180deg, var(--brand-paper-white) 0%, #f7f2e8 100%);
+}
+
+.why-overview::before {
+  content: "SHADEO";
+  position: absolute;
+  z-index: 0;
+  top: clamp(24px, 5vw, 70px);
+  left: max(24px, calc((100vw - 1280px) / 2));
+  color: var(--brand-watermark);
+  font-size: clamp(7rem, 20vw, 21rem);
+  font-weight: 950;
+  line-height: 0.78;
+  letter-spacing: -0.06em;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.why-overview__side-label {
+  position: absolute;
+  left: 16px;
+  top: 50%;
+  z-index: 2;
+  transform: translateY(-50%) rotate(-90deg);
+  transform-origin: left center;
+  color: rgba(35, 45, 39, 0.36);
+  font-size: 0.82rem;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.why-overview > :not(.why-overview__side-label) {
+  position: relative;
+  z-index: 1;
+}
+
+.why-overview h2 {
+  max-width: 15ch;
+  color: var(--brand-ink);
+  font-family: var(--font-body);
+  font-size: var(--brand-fs-h2);
+  font-weight: 950;
+  line-height: var(--brand-lh-heading);
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.why-overview__intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 28px;
+  max-width: 1040px;
+}
+
+.why-overview__intro p {
+  max-width: 54ch;
+  color: var(--brand-ink-muted);
+  font-size: var(--brand-fs-lead);
+  font-weight: 650;
+  line-height: var(--brand-lh-copy);
+}
+
+.why-overview__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.why-card {
+  min-height: 210px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 24px;
+  border-radius: 28px;
+  border: 1px solid var(--brand-line-soft);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.why-card span {
+  color: var(--brand-lime);
+  font-size: 2rem;
+  font-weight: 950;
+  line-height: 1;
+  -webkit-text-stroke: 1px rgba(35, 45, 39, 0.5);
+}
+
+.why-card strong {
+  color: var(--brand-ink-soft);
+  font-size: clamp(1.3rem, 1.5vw, 1.55rem);
+  line-height: 1.16;
+}
+
+.why-card small {
+  color: var(--brand-ink-muted);
+  font-size: var(--brand-fs-body);
+  line-height: 1.45;
 }
 
 .number-card {
@@ -509,6 +625,35 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 640px) {
+  .why-overview {
+    min-height: auto;
+    padding-inline: var(--gutter);
+    padding-bottom: 42px;
+  }
+
+  .why-overview h2 {
+    max-width: 15ch;
+    font-size: clamp(2.15rem, 9vw, 3.2rem);
+    line-height: 1.08;
+  }
+
+  .why-overview__side-label {
+    display: none;
+  }
+
+  .why-overview__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .why-overview__intro {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .why-card {
+    min-height: auto;
+  }
+
   .number-card,
   .awareness-panel {
     grid-template-columns: 1fr;
@@ -520,6 +665,20 @@ onBeforeUnmount(() => {
 
   .check-panel {
     padding: 24px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 980px) {
+  .why-overview {
+    min-height: auto;
+  }
+
+  .why-overview__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .why-card {
+    min-height: 190px;
   }
 }
 

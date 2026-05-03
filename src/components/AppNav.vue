@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
 import AppButton from './AppButton.vue';
 
+const route = useRoute();
 const scrolled = ref(false);
 const open = ref(false);
 
@@ -19,37 +21,40 @@ onBeforeUnmount(() => {
 });
 
 const links = [
-  { label: 'Home', href: '#hero' },
-  { label: 'Why', href: '#intro' },
-  { label: 'Journey', href: '#navigation' },
-  { label: 'Awareness', href: '#awareness' },
-  { label: 'Self-Check', href: '#self-check' },
+  { label: 'Home', href: '/#hero', path: '/', hash: '#hero' },
+  { label: 'Why', href: '/why', path: '/why' },
+  { label: 'Cool Routes', href: '/#navigation', path: '/', hash: '#navigation' },
+  { label: 'Awareness', href: '/#awareness', path: '/', hash: '#awareness' },
+  { label: 'Self-Check', href: '/#self-check', path: '/', hash: '#self-check' },
 ];
 
 const closeMenu = () => {
   open.value = false;
+};
+
+const isActive = (link: { path: string; hash?: string }) => {
+  if (route.path !== link.path) return false;
+  if (link.path === '/why') return true;
+  if (!link.hash) return route.hash === '';
+  return route.hash === link.hash || (link.hash === '#hero' && route.hash === '');
 };
 </script>
 
 <template>
   <header :class="['nav', { 'nav--scrolled': scrolled }]">
     <div class="nav__inner">
-      <a href="#hero" class="brand" aria-label="Shadeo home" @click="closeMenu">Shadeo</a>
+      <a href="/#hero" class="brand" aria-label="Shadeo home" @click="closeMenu">Shadeo</a>
 
       <nav class="nav__links" aria-label="Primary">
         <a
           v-for="link in links"
           :key="link.href"
           :href="link.href"
-          class="nav__link"
+          :class="['nav__link', { 'is-active': isActive(link) }]"
         >
           {{ link.label }}
         </a>
       </nav>
-
-      <AppButton href="#self-check" size="md" class="nav__cta">
-        Check Risk
-      </AppButton>
 
       <button
         class="nav__burger"
@@ -64,10 +69,16 @@ const closeMenu = () => {
     </div>
 
     <div :class="['nav__sheet', { 'is-open': open }]">
-      <a v-for="link in links" :key="link.href" :href="link.href" class="nav__sheet-link" @click="closeMenu">
+      <a
+        v-for="link in links"
+        :key="link.href"
+        :href="link.href"
+        :class="['nav__sheet-link', { 'is-active': isActive(link) }]"
+        @click="closeMenu"
+      >
         {{ link.label }}
       </a>
-      <AppButton href="#self-check" size="lg" @click="closeMenu">Check Your Heat Risk</AppButton>
+      <AppButton href="/#self-check" size="lg" @click="closeMenu">Check Your Heat Risk</AppButton>
     </div>
   </header>
 </template>
@@ -136,7 +147,7 @@ const closeMenu = () => {
 }
 
 .nav__link:hover,
-.nav__link:first-child {
+.nav__link.is-active {
   color: #23342a;
   background: rgba(155, 224, 111, 0.24);
 }
@@ -214,6 +225,11 @@ const closeMenu = () => {
 .nav__sheet-link:hover {
   color: var(--brand-ink-soft);
   background: rgba(155, 224, 111, 0.22);
+}
+
+.nav__sheet-link.is-active {
+  color: var(--brand-ink-soft);
+  background: rgba(155, 224, 111, 0.24);
 }
 
 @media (max-width: 980px) {

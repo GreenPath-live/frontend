@@ -1,7 +1,7 @@
 <script setup lang="ts">
 withDefaults(
   defineProps<{
-    variant?: 'primary' | 'secondary' | 'ghost';
+    variant?: 'primary' | 'secondary' | 'ghost' | 'feature';
     size?: 'md' | 'lg';
     href?: string;
     type?: 'button' | 'submit';
@@ -116,6 +116,40 @@ withDefaults(
   padding-inline: 12px;
 }
 
+.btn--feature {
+  --btn-bg: var(--brand-lime);
+  --btn-fg: #142016;
+  --btn-border: transparent;
+  --btn-hover-bg: var(--brand-lime-hover);
+  min-height: 76px;
+  min-width: min(100%, 360px);
+  justify-content: space-between;
+  gap: 22px;
+  padding: 10px 14px 10px 28px;
+  border-radius: 30px;
+  font-size: 1.1875rem;
+}
+
+.btn--feature .btn__inner {
+  width: 100%;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.btn--feature .btn__inner::after {
+  content: "->";
+  flex: 0 0 54px;
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #142016;
+  font-size: 1.65rem;
+  line-height: 1;
+}
+
 .btn.is-disabled,
 .btn:disabled {
   opacity: 0.48;
@@ -130,6 +164,11 @@ withDefaults(
     white-space: normal;
     text-align: center;
     line-height: 1.25;
+  }
+
+  .btn--feature {
+    min-height: 72px;
+    padding-left: 22px;
   }
 }
 </style>

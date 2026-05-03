@@ -70,9 +70,8 @@ withDefaults(
   z-index: 1;
   border-radius: 58px;
   overflow: hidden;
-  opacity: 1;
-  transform: translateZ(0);
-  will-change: transform;
+  will-change: transform, opacity;
+  animation: hb-art-in 1.2s cubic-bezier(0.16, 0.84, 0.44, 1) 0.08s both;
 }
 
 .hero-blend__art::before {
@@ -100,6 +99,8 @@ withDefaults(
   display: flex;
   flex-direction: column;
   gap: 24px;
+  will-change: transform, opacity;
+  animation: hb-copy-in 0.88s cubic-bezier(0.16, 0.84, 0.44, 1) 0.32s both;
 }
 
 .hero-blend :slotted(h1) {
@@ -119,6 +120,38 @@ withDefaults(
   font-size: var(--brand-fs-lead);
   font-weight: 650;
   line-height: var(--brand-lh-copy);
+}
+
+/* ── Animations ─────────────────────────────────────────────── */
+/* Image slides in from the right; copy strides in from the left.
+   Contrast with HeroFullSection (zoom-in + rise from below). */
+@keyframes hb-art-in {
+  from {
+    opacity: 0;
+    transform: translateX(52px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes hb-copy-in {
+  from {
+    opacity: 0;
+    transform: translateX(-36px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-blend__art,
+  .hero-blend__copy {
+    animation: none;
+  }
 }
 
 @media (max-width: 980px) {
