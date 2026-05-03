@@ -38,10 +38,10 @@ withDefaults(
 <style scoped>
 .page-section {
   min-height: 100vh;
-  scroll-snap-align: start;
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  contain: layout paint style;
   display: grid;
   grid-template-columns: minmax(0, 0.9fr) minmax(360px, 1fr);
   align-items: center;

@@ -34,10 +34,10 @@ withDefaults(
 <style scoped>
 .hero-blend {
   min-height: 100vh;
-  scroll-snap-align: start;
   position: relative;
   overflow: hidden;
   isolation: isolate;
+  contain: layout paint style;
   display: grid;
   align-items: center;
   padding: calc(var(--nav-h) + 56px) max(var(--gutter), calc((100vw - 1280px) / 2)) 58px;
@@ -71,6 +71,8 @@ withDefaults(
   border-radius: 58px;
   overflow: hidden;
   opacity: 1;
+  transform: translateZ(0);
+  will-change: transform;
 }
 
 .hero-blend__art::before {

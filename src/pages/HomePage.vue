@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue';
 import AppNav from '../components/AppNav.vue';
 import AppButton from '../components/AppButton.vue';
 import HeroBlendSection from '../components/HeroBlendSection.vue';
@@ -8,6 +8,119 @@ import SectionKicker from '../components/SectionKicker.vue';
 import VisualPanel from '../components/VisualPanel.vue';
 
 const root = ref<HTMLElement | null>(null);
+let cleanupSectionScroller: (() => void) | undefined;
+
+const sectionIds = ['hero', 'intro', 'navigation', 'awareness', 'self-check'];
+
+const easeInOutCubic = (t: number) => (
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+);
+
+const getNearestSectionIndex = () => {
+  const viewportMiddle = window.scrollY + window.innerHeight / 2;
+  let nearest = 0;
+  let nearestDistance = Number.POSITIVE_INFINITY;
+
+  sectionIds.forEach((id, index) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    const sectionMiddle = el.offsetTop + el.offsetHeight / 2;
+    const distance = Math.abs(sectionMiddle - viewportMiddle);
+    if (distance < nearestDistance) {
+      nearest = index;
+      nearestDistance = distance;
+    }
+  });
+
+  return nearest;
+};
+
+const setupSectionScroller = () => {
+  const canUseControlledScroll = window.matchMedia('(min-width: 900px) and (pointer: fine)').matches
+    && !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if (!canUseControlledScroll) return undefined;
+
+  let currentIndex = getNearestSectionIndex();
+  let isAnimating = false;
+  let animationFrame = 0;
+  let wheelRemainder = 0;
+
+  const animateTo = (targetIndex: number) => {
+    const target = document.getElementById(sectionIds[targetIndex]);
+    if (!target || targetIndex === currentIndex) return;
+
+    window.cancelAnimationFrame(animationFrame);
+    isAnimating = true;
+    currentIndex = targetIndex;
+
+    const start = window.scrollY;
+    const end = target.offsetTop;
+    const distance = end - start;
+    const duration = Math.min(920, Math.max(620, Math.abs(distance) * 0.42));
+    const startedAt = performance.now();
+
+    const frame = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      window.scrollTo(0, start + distance * easeInOutCubic(progress));
+
+      if (progress < 1) {
+        animationFrame = window.requestAnimationFrame(frame);
+      } else {
+        isAnimating = false;
+        wheelRemainder = 0;
+      }
+    };
+
+    animationFrame = window.requestAnimationFrame(frame);
+  };
+
+  const onWheel = (event: WheelEvent) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, textarea, select, button, a, [data-native-scroll]')) return;
+
+    event.preventDefault();
+    if (isAnimating) return;
+
+    wheelRemainder += event.deltaY;
+    if (Math.abs(wheelRemainder) < 42) return;
+
+    currentIndex = getNearestSectionIndex();
+    const direction = wheelRemainder > 0 ? 1 : -1;
+    const nextIndex = Math.max(0, Math.min(sectionIds.length - 1, currentIndex + direction));
+    wheelRemainder = 0;
+    animateTo(nextIndex);
+  };
+
+  const onKeydown = (event: KeyboardEvent) => {
+    const keys = ['PageDown', 'PageUp', 'ArrowDown', 'ArrowUp', 'Home', 'End'];
+    if (!keys.includes(event.key) || isAnimating) return;
+
+    currentIndex = getNearestSectionIndex();
+    let nextIndex = currentIndex;
+
+    if (event.key === 'PageDown' || event.key === 'ArrowDown') nextIndex += 1;
+    if (event.key === 'PageUp' || event.key === 'ArrowUp') nextIndex -= 1;
+    if (event.key === 'Home') nextIndex = 0;
+    if (event.key === 'End') nextIndex = sectionIds.length - 1;
+
+    nextIndex = Math.max(0, Math.min(sectionIds.length - 1, nextIndex));
+    if (nextIndex === currentIndex) return;
+
+    event.preventDefault();
+    animateTo(nextIndex);
+  };
+
+  window.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('keydown', onKeydown);
+
+  return () => {
+    window.cancelAnimationFrame(animationFrame);
+    window.removeEventListener('wheel', onWheel);
+    window.removeEventListener('keydown', onKeydown);
+  };
+};
 
 onMounted(() => {
   const els = root.value?.querySelectorAll('[data-rise]') ?? [];
@@ -21,6 +134,11 @@ onMounted(() => {
   }, { threshold: 0.16 });
 
   els.forEach((el) => io.observe(el));
+  cleanupSectionScroller = setupSectionScroller();
+});
+
+onBeforeUnmount(() => {
+  cleanupSectionScroller?.();
 });
 </script>
 

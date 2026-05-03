@@ -10,15 +10,15 @@
 }
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
   -webkit-text-size-adjust: 100%;
 }
 
 @media (min-width: 1024px) {
-  html { scroll-snap-type: y mandatory; }
+  html { scroll-snap-type: none; }
 }
 @media (max-width: 1023px) {
-  html { scroll-snap-type: y proximity; }
+  html { scroll-snap-type: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-snap-type: none; scroll-behavior: auto; }
@@ -39,7 +39,7 @@ body {
     radial-gradient(900px 700px at 0% 100%, rgba(91, 140, 97, 0.10), transparent 65%),
     radial-gradient(circle at 50% 50%, rgba(31, 42, 30, 0.012) 1px, transparent 1.4px);
   background-size: auto, auto, 4px 4px;
-  background-attachment: fixed;
+  background-attachment: scroll;
 }
 
 img, svg { display: block; max-width: 100%; }
