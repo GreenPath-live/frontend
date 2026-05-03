@@ -1,0 +1,134 @@
+/* ─────────────────────────────────────────────────────────────────
+   Shadeo Design Tokens — "Soft Daylight Clay"
+   Warm daylight palette, claymation surfaces, editorial type.
+   These tokens are normative for every page and component.
+   ───────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Colour ----------------------------------------------------- */
+  /* Current brand layer: Light watermark editorial style. Prefer these for new pages. */
+  --brand-paper:         #f8f1e3;
+  --brand-paper-soft:    #fbf6eb;
+  --brand-paper-white:   #fbfaf7;
+  --brand-ink:           #10130f;
+  --brand-ink-soft:      #263028;
+  --brand-ink-muted:     #4f5850;
+  --brand-line:          rgba(35, 45, 39, 0.10);
+  --brand-line-soft:     rgba(35, 45, 39, 0.08);
+  --brand-lime:          #9be06f;
+  --brand-lime-hover:    #8bd95e;
+  --brand-lime-soft:     #e4f8d5;
+  --brand-sage:          #62856b;
+  --brand-gold:          #efa62b;
+  --brand-sky:           #a8d4e2;
+  --brand-watermark:     rgba(16, 19, 15, 0.022);
+  --brand-watermark-side: rgba(16, 19, 15, 0.026);
+  --brand-glow-lime:     rgba(155, 224, 111, 0.22);
+  --brand-shadow-panel:  0 26px 72px -48px rgba(35, 45, 39, 0.38);
+  --brand-shadow-nav:    0 18px 45px -30px rgba(35, 45, 39, 0.34);
+
+  --ink:           #1f2a1e;
+  --ink-soft:      #3a4a3c;
+  --ink-muted:     #5c6a5e;
+  --ink-faint:     #8a9489;
+
+  --canvas:        #f4efe2;   /* warm cream — page bg */
+  --canvas-deep:   #ece4d0;   /* slightly deeper bg layer */
+  --canvas-warm:   #faf5e9;   /* lightest cream */
+  --surface:       #ffffff;
+
+  --shade:         #5b8c61;   /* primary brand sage */
+  --shade-deep:    #2f5c3b;   /* high-contrast green */
+  --shade-soft:    #c9dec1;
+  --shade-mist:    #e7efdc;
+
+  --sun:           #e8a53a;   /* warm accent */
+  --sun-soft:      #f6d597;
+  --peach:         #f4b79e;   /* clay-figure accent */
+  --peach-soft:    #fbe1d3;
+  --sky:           #bfd8e5;   /* cool counter */
+  --sky-soft:      #e2eef4;
+
+  --alert:         #b83a2c;
+  --alert-soft:    #f1c9c3;
+
+  /* Type ------------------------------------------------------- */
+  --font-display:  "Fraunces", "Source Serif 4", Georgia, serif;
+  --font-body:     "Manrope", "Inter", system-ui, sans-serif;
+
+  --fs-display:    clamp(3rem, 7vw, 5.5rem);
+  --fs-h1:         clamp(2.4rem, 5.4vw, 4rem);
+  --fs-h2:         clamp(2rem, 3.6vw, 2.75rem);
+  --fs-h3:         clamp(1.4rem, 2vw, 1.75rem);
+  --fs-lead:       clamp(1.125rem, 1.4vw, 1.375rem);
+  --fs-body:       1.125rem;          /* 18 px — older-reader floor */
+  --fs-small:      0.95rem;
+  --fs-caption:    0.825rem;
+
+  --lh-tight:      1.04;
+  --lh-snug:       1.2;
+  --lh-body:       1.6;
+
+  --tracking-tight:  -0.025em;
+  --tracking-normal:  0;
+  --tracking-wide:    0.08em;
+
+  /* Spacing (4 px base) ---------------------------------------- */
+  --s-1:   4px;
+  --s-2:   8px;
+  --s-3:   12px;
+  --s-4:   16px;
+  --s-5:   24px;
+  --s-6:   32px;
+  --s-7:   48px;
+  --s-8:   64px;
+  --s-9:   96px;
+  --s-10:  128px;
+
+  /* Radii — chunky, claymation-friendly ----------------------- */
+  --r-sm:   8px;
+  --r-md:   14px;
+  --r-lg:   22px;
+  --r-xl:   32px;
+  --r-2xl:  44px;
+  --r-pill: 999px;
+
+  /* Shadows — soft "clay" stack ------------------------------- */
+  --sh-clay-sm:
+    0 1px 1px rgba(31, 42, 30, 0.04),
+    0 6px 14px -8px rgba(31, 42, 30, 0.18);
+  --sh-clay:
+    0 2px 2px rgba(31, 42, 30, 0.05),
+    0 12px 28px -14px rgba(31, 42, 30, 0.22),
+    0 30px 60px -30px rgba(31, 42, 30, 0.18);
+  --sh-clay-lg:
+    0 3px 4px rgba(31, 42, 30, 0.05),
+    0 24px 50px -22px rgba(31, 42, 30, 0.28),
+    0 50px 100px -40px rgba(31, 42, 30, 0.22);
+  --sh-inset-sun: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+
+  /* Motion ---------------------------------------------------- */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out:   cubic-bezier(0.7, 0, 0.3, 1);
+  --d-fast:    150ms;
+  --d-base:    400ms;
+  --d-long:    600ms;
+
+  /* Layout ---------------------------------------------------- */
+  --container:   1200px;
+  --gutter:      clamp(20px, 4vw, 48px);
+  --nav-h:       72px;
+
+  /* Z ---------------------------------------------------------- */
+  --z-nav: 50;
+  --z-modal: 80;
+}
+
+/* Reduced motion: collapse durations, keep functional transitions */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --d-fast: 0ms;
+    --d-base: 0ms;
+    --d-long: 0ms;
+  }
+}
